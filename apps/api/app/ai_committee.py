@@ -218,7 +218,7 @@ async def call_openai_compatible(settings: Settings, provider: str, context: dic
         "response_format": {"type": "json_object"},
         "messages": [
             {"role": "system", "content": analyst_system_prompt()},
-            {"role": "user", "content": json.dumps(context, ensure_ascii=False)},
+            {"role": "user", "content": json.dumps(compact_context(context, provider), ensure_ascii=False)},
         ],
     }
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
@@ -236,7 +236,7 @@ async def call_gemini(settings: Settings, context: dict) -> AIProviderReport:
         "contents": [
             {
                 "role": "user",
-                "parts": [{"text": analyst_system_prompt() + "\n\nDATA:\n" + json.dumps(context, ensure_ascii=False)}],
+                "parts": [{"text": analyst_system_prompt() + "\n\nDATA:\n" + json.dumps(compact_context(context, "gemini"), ensure_ascii=False)}],
             }
         ],
         "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"},
@@ -258,6 +258,43 @@ def analyst_system_prompt() -> str:
         "risk_adjustment is one of: reduce, keep, increase_carefully. "
         "recommended_filters is an array of short strings."
     )
+
+
+def compact_context(context: dict, provider: str) -> dict:
+    if provider == "gemini":
+        return context
+
+    signals = context.get("signals", {})
+    snapshots = context.get("market_snapshots", {})
+    compacted = {
+        **context,
+        "signals": {
+            "total": signals.get("total", 0),
+            "counts": signals.get("counts", {}),
+            "top_detections": signals.get("top_detections", [])[:10],
+            "recent": [
+                {
+                    "created_at": row.get("created_at"),
+                    "signal": row.get("signal"),
+                    "confidence": row.get("confidence"),
+                    "risk_score": row.get("risk_score"),
+                    "price": row.get("price"),
+                    "detections": row.get("detections"),
+                }
+                for row in signals.get("recent", [])[:10]
+            ],
+        },
+        "market_snapshots": {
+            "total": snapshots.get("total", 0),
+            "latest": snapshots.get("latest", {}),
+            "recent_context": snapshots.get("recent_context", [])[:10],
+        },
+    }
+    if provider == "groq":
+        compacted["signals"]["recent"] = compacted["signals"]["recent"][:5]
+        compacted["market_snapshots"]["recent_context"] = compacted["market_snapshots"]["recent_context"][:5]
+        compacted["paper_trades"]["recent_closed"] = compacted["paper_trades"].get("recent_closed", [])[-5:]
+    return compacted
 
 
 def provider_report_from_json(provider: str, model: str, content: str) -> AIProviderReport:
