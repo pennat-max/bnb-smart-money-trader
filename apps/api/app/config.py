@@ -22,6 +22,19 @@ class Settings(BaseSettings):
     paper_risk_pct: float = Field(default=1.0, alias="PAPER_RISK_PCT")
     market_collector_enabled: bool = Field(default=True, alias="MARKET_COLLECTOR_ENABLED")
     market_collector_interval_seconds: int = Field(default=300, alias="MARKET_COLLECTOR_INTERVAL_SECONDS")
+    ai_committee_enabled: bool = Field(default=True, alias="AI_COMMITTEE_ENABLED")
+    ai_primary_provider: str = Field(default="deepseek", alias="AI_PRIMARY_PROVIDER")
+    ai_secondary_provider: str = Field(default="gemini", alias="AI_SECONDARY_PROVIDER")
+    ai_fast_provider: str = Field(default="groq", alias="AI_FAST_PROVIDER")
+    ai_premium_provider: str = Field(default="openai", alias="AI_PREMIUM_PROVIDER")
+    deepseek_api_key: str | None = Field(default=None, alias="DEEPSEEK_API_KEY")
+    deepseek_model: str = Field(default="deepseek-v4-flash", alias="DEEPSEEK_MODEL")
+    gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
+    gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
+    groq_api_key: str | None = Field(default=None, alias="GROQ_API_KEY")
+    groq_model: str = Field(default="openai/gpt-oss-20b", alias="GROQ_MODEL")
+    openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
+    openai_model: str = Field(default="gpt-5.2", alias="OPENAI_MODEL")
     frontend_origins: str = Field(
         default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001",
         alias="FRONTEND_ORIGINS",

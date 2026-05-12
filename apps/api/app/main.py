@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
+from .ai_committee import configured_ai_providers, generate_ai_committee_report
 from .backtest import run_backtest
 from .binance_client import BinanceFuturesClient
 from .collector import market_record_from_signal, save_market_data
@@ -14,7 +15,7 @@ from .config import get_settings
 from .journal import recent_signals, save_signal
 from .learning import summarize_learning
 from .line_alert import send_line_alert
-from .models import BacktestRequest, DerivativesMetrics, PaperRunRequest, PaperRunResponse, RuntimeStatus, TestnetOrderPreviewRequest
+from .models import AIReportRequest, BacktestRequest, DerivativesMetrics, PaperRunRequest, PaperRunResponse, RuntimeStatus, TestnetOrderPreviewRequest
 from .paper import active_paper_trade, load_paper_trades, maybe_close_trade, open_paper_trade, paper_entry_block_reason
 from .signal_engine import generate_signal
 
@@ -159,6 +160,8 @@ async def runtime_status():
         paper_trading_interval_seconds=settings.paper_trading_interval_seconds,
         market_collector_enabled=settings.market_collector_enabled,
         market_collector_interval_seconds=settings.market_collector_interval_seconds,
+        ai_committee_enabled=settings.ai_committee_enabled,
+        ai_providers_configured=configured_ai_providers(settings),
         risk_daily_target_pct=settings.risk_daily_target_pct,
         risk_max_daily_loss_pct=settings.risk_max_daily_loss_pct,
         risk_min_confidence=settings.risk_min_confidence,
@@ -266,6 +269,12 @@ async def backtest(request: BacktestRequest):
 async def learning():
     settings = get_settings()
     return summarize_learning([], load_paper_trades(settings, limit=500))
+
+
+@app.post("/api/ai/report")
+async def ai_report(request: AIReportRequest):
+    settings = get_settings()
+    return await generate_ai_committee_report(settings, request)
 
 
 @app.post("/api/paper/run", response_model=PaperRunResponse)

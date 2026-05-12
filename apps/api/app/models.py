@@ -153,6 +153,8 @@ class RuntimeStatus(BaseModel):
     paper_trading_interval_seconds: int
     market_collector_enabled: bool
     market_collector_interval_seconds: int
+    ai_committee_enabled: bool = False
+    ai_providers_configured: list[str] = []
     risk_daily_target_pct: float
     risk_max_daily_loss_pct: float
     risk_min_confidence: int
@@ -295,3 +297,40 @@ class PaperRunResponse(BaseModel):
     active_trade: PaperTradeRecord | None = None
     closed_trade: PaperTradeRecord | None = None
     learning_summary: dict[str, float | int | str]
+
+
+class AIReportRequest(BaseModel):
+    hours: int = Field(default=24, ge=1, le=168)
+    include_premium: bool = False
+
+
+class AIProviderReport(BaseModel):
+    provider: str
+    model: str
+    ok: bool
+    skipped: bool = False
+    summary: str
+    confidence_adjustment: int = 0
+    risk_adjustment: str = "keep"
+    recommended_filters: list[str] = []
+    error: str | None = None
+
+
+class AICommitteeReport(BaseModel):
+    created_at: datetime
+    mode: str = "paper_only_analysis"
+    hours: int
+    providers_used: list[str]
+    providers_skipped: list[str]
+    consensus_score: int = Field(ge=0, le=100)
+    paper_pnl_pct: float
+    estimated_pnl_usdt: float
+    win_rate: float
+    samples: int
+    daily_target_pct: float
+    target_status: str
+    consensus_summary_th: str
+    lessons_learned: list[str]
+    strategy_adjustments: list[str]
+    safety_notes: list[str]
+    provider_reports: list[AIProviderReport]

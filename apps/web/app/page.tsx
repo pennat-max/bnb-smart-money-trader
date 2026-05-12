@@ -86,6 +86,8 @@ type RuntimeStatus = {
   paper_trading_interval_seconds: number;
   market_collector_enabled: boolean;
   market_collector_interval_seconds: number;
+  ai_committee_enabled: boolean;
+  ai_providers_configured: string[];
   risk_daily_target_pct: number;
   risk_max_daily_loss_pct: number;
   risk_min_confidence: number;
@@ -182,6 +184,35 @@ type PaperRunResponse = {
   learning_summary: LearningSummary;
 };
 
+type AICommitteeReport = {
+  created_at: string;
+  hours: number;
+  providers_used: string[];
+  providers_skipped: string[];
+  consensus_score: number;
+  paper_pnl_pct: number;
+  estimated_pnl_usdt: number;
+  win_rate: number;
+  samples: number;
+  daily_target_pct: number;
+  target_status: string;
+  consensus_summary_th: string;
+  lessons_learned: string[];
+  strategy_adjustments: string[];
+  safety_notes: string[];
+  provider_reports: Array<{
+    provider: string;
+    model: string;
+    ok: boolean;
+    skipped: boolean;
+    summary: string;
+    confidence_adjustment: number;
+    risk_adjustment: string;
+    recommended_filters: string[];
+    error?: string | null;
+  }>;
+};
+
 const apiUrl = "";
 
 export default function Dashboard() {
@@ -214,6 +245,9 @@ export default function Dashboard() {
   const [learningSummary, setLearningSummary] = useState<LearningSummary | null>(null);
   const [paperStatus, setPaperStatus] = useState("Paper trading is off.");
   const [paperMonitor, setPaperMonitor] = useState<PaperRunResponse | null>(null);
+  const [aiReport, setAiReport] = useState<AICommitteeReport | null>(null);
+  const [aiReportStatus, setAiReportStatus] = useState("AI committee is ready.");
+  const [aiReportRunning, setAiReportRunning] = useState(false);
 
   async function refresh() {
     try {
@@ -342,6 +376,29 @@ export default function Dashboard() {
     setPaperStatus(payload.message);
     setPaperMonitor(payload);
     setLearningSummary(payload.learning_summary);
+  }
+
+  async function generateAiReport() {
+    setAiReportRunning(true);
+    setAiReportStatus("AI committee is reading paper trades, signals, and market snapshots...");
+    try {
+      const response = await fetch(`${apiUrl}/ai-report`, {
+        body: JSON.stringify({ hours: 24, include_premium: false }),
+        headers: { "content-type": "application/json" },
+        method: "POST"
+      });
+      if (!response.ok) {
+        setAiReportStatus("AI report failed. Backend is not ready.");
+        return;
+      }
+      const payload = (await response.json()) as AICommitteeReport;
+      setAiReport(payload);
+      setAiReportStatus(`Done: ${payload.consensus_score}/100 consensus, ${payload.paper_pnl_pct}% paper PnL.`);
+    } catch {
+      setAiReportStatus("AI report failed. Network or provider error.");
+    } finally {
+      setAiReportRunning(false);
+    }
   }
 
   const detectedSetups = useMemo(() => {
@@ -516,6 +573,9 @@ export default function Dashboard() {
           </p>
           <p className="saveState">
             Market collector: {runtimeStatus?.market_collector_enabled ? `on / ${runtimeStatus.market_collector_interval_seconds}s` : "off"}
+          </p>
+          <p className="saveState">
+            AI committee: {runtimeStatus?.ai_committee_enabled ? runtimeStatus.ai_providers_configured.join(", ") || "rule-based only" : "off"}
           </p>
           <p className="saveState">Trading: {runtimeStatus?.real_trading ? "live" : "signal-only"}</p>
         </div>
@@ -706,6 +766,46 @@ export default function Dashboard() {
             <Field label="Paper PnL" value={`${learningSummary?.total_pnl_pct ?? 0}%`} />
           </div>
           <p className="personality">{learningSummary?.note ?? "AI learning: waiting for paper and backtest samples."}</p>
+        </div>
+
+        <div className="panel learningPanel">
+          <div className="panelHeader">
+            <span>AI Committee</span>
+            <Brain size={18} />
+          </div>
+          <button className="wideButton" onClick={generateAiReport} disabled={aiReportRunning}>
+            {aiReportRunning ? <Activity size={16} className="spinIcon" /> : <Play size={16} />}
+            {aiReportRunning ? "Analyzing..." : "Generate AI Report"}
+          </button>
+          <p className="saveState">{aiReportStatus}</p>
+          {aiReport ? (
+            <>
+              <div className="resultGrid">
+                <Field label="Consensus" value={`${aiReport.consensus_score}/100`} />
+                <Field label="Paper PnL" value={`${aiReport.paper_pnl_pct}%`} />
+                <Field label="Est. USDT" value={`${aiReport.estimated_pnl_usdt}`} />
+                <Field label="Win Rate" value={`${aiReport.win_rate}%`} />
+                <Field label="Samples" value={`${aiReport.samples}`} />
+                <Field label="Target" value={aiReport.target_status} />
+              </div>
+              <p className="personality">{aiReport.consensus_summary_th}</p>
+              <div className="profileList">
+                {aiReport.provider_reports.map((report) => (
+                  <div className="profileItem" key={`${report.provider}-${report.model}`}>
+                    <strong>{report.provider} / {report.model}</strong>
+                    <span>{report.skipped ? "skipped" : report.ok ? `${report.confidence_adjustment} confidence / ${report.risk_adjustment}` : "failed"}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="setupTags">
+                {aiReport.lessons_learned.map((lesson) => (
+                  <span key={lesson}>{lesson}</span>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="empty">AI providers are optional. Without keys, the local rule-based analyst will still report.</p>
+          )}
         </div>
       </section>
     </main>
