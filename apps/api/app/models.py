@@ -92,3 +92,79 @@ class RuntimeStatus(BaseModel):
     risk_max_daily_loss_pct: float
     risk_min_confidence: int
     risk_max_active_bnb_positions: int
+
+
+class BacktestRequest(BaseModel):
+    symbol: str = "BNBUSDT"
+    interval: str = "1m"
+    limit: int = Field(default=500, ge=150, le=1500)
+    lookahead_candles: int = Field(default=30, ge=3, le=240)
+    starting_balance: float = Field(default=1000, gt=0)
+
+
+class BacktestTrade(BaseModel):
+    opened_at: int
+    closed_at: int
+    side: Literal["LONG", "SHORT"]
+    entry: float
+    take_profit: float
+    stop_loss: float
+    exit_price: float
+    outcome: Literal["WIN", "LOSS", "TIMEOUT"]
+    pnl_pct: float
+    confidence: int
+    reason: str
+
+
+class BacktestResult(BaseModel):
+    symbol: str
+    interval: str
+    trades: int
+    wins: int
+    losses: int
+    timeouts: int
+    win_rate: float
+    total_pnl_pct: float
+    ending_balance: float
+    max_drawdown_pct: float
+    learning_note: str
+    recent_trades: list[BacktestTrade]
+
+
+class PaperRunRequest(BaseModel):
+    enabled: bool = True
+    balance: float = Field(default=1000, gt=0)
+    risk_pct: float = Field(default=1.0, ge=0.1, le=5)
+    daily_pnl_pct: float = 0
+    active_bnb_positions: int = 0
+
+
+class PaperTradeRecord(BaseModel):
+    id: str
+    created_at: datetime
+    updated_at: datetime
+    symbol: str = "BNBUSDT"
+    side: Literal["LONG", "SHORT"]
+    status: Literal["OPEN", "CLOSED"]
+    entry: float
+    take_profit: float
+    stop_loss: float
+    size: float
+    confidence: int
+    opened_price: float
+    current_price: float
+    exit_price: float | None = None
+    pnl_pct: float = 0
+    pnl_usdt: float = 0
+    outcome: Literal["OPEN", "WIN", "LOSS", "MANUAL", "TIMEOUT"] = "OPEN"
+    reasoning_th: str = ""
+
+
+class PaperRunResponse(BaseModel):
+    ok: bool
+    message: str
+    mode: str = "paper_only"
+    signal: SignalType
+    active_trade: PaperTradeRecord | None = None
+    closed_trade: PaperTradeRecord | None = None
+    learning_summary: dict[str, float | int | str]

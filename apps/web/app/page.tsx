@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, AlertTriangle, BarChart3, Bell, Brain, Clock3, FlaskConical, ShieldCheck, TrendingDown, TrendingUp } from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, Bell, Brain, Clock3, FlaskConical, History, Play, ShieldCheck, TrendingDown, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 type SignalType = "LONG" | "SHORT" | "WAIT" | "CANCEL";
@@ -71,6 +71,49 @@ type RuntimeStatus = {
   risk_max_active_bnb_positions: number;
 };
 
+type BacktestResult = {
+  trades: number;
+  wins: number;
+  losses: number;
+  timeouts: number;
+  win_rate: number;
+  total_pnl_pct: number;
+  ending_balance: number;
+  max_drawdown_pct: number;
+  learning_note: string;
+};
+
+type LearningSummary = {
+  samples: number;
+  wins: number;
+  losses: number;
+  timeouts: number;
+  win_rate: number;
+  total_pnl_pct: number;
+  note: string;
+};
+
+type PaperRunResponse = {
+  ok: boolean;
+  message: string;
+  signal: SignalType;
+  active_trade: {
+    side: "LONG" | "SHORT";
+    entry: number;
+    take_profit: number;
+    stop_loss: number;
+    current_price: number;
+    pnl_pct: number;
+    outcome: string;
+  } | null;
+  closed_trade: {
+    side: "LONG" | "SHORT";
+    pnl_pct: number;
+    outcome: string;
+  } | null;
+  learning_summary: LearningSummary;
+};
+
 const apiUrl = "";
 
 export default function Dashboard() {
@@ -83,6 +126,13 @@ export default function Dashboard() {
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null);
   const [orderPreview, setOrderPreview] = useState<string>("No testnet preview yet.");
   const [alertPreview, setAlertPreview] = useState<string>("LINE alert is optional and off until env vars are configured.");
+  const [backtestLimit, setBacktestLimit] = useState(500);
+  const [paperEnabled, setPaperEnabled] = useState(false);
+  const [paperBalance, setPaperBalance] = useState(1000);
+  const [paperRisk, setPaperRisk] = useState(1);
+  const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
+  const [learningSummary, setLearningSummary] = useState<LearningSummary | null>(null);
+  const [paperStatus, setPaperStatus] = useState("Paper trading is off.");
 
   async function refresh() {
     try {
@@ -101,6 +151,11 @@ export default function Dashboard() {
       if (historyResponse.ok) {
         const historyData = await historyResponse.json();
         setHistory(historyData.items ?? []);
+      }
+
+      const learningResponse = await fetch(`${apiUrl}/learning`);
+      if (learningResponse.ok) {
+        setLearningSummary((await learningResponse.json()) as LearningSummary);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -142,6 +197,46 @@ export default function Dashboard() {
     }
     const payload = (await response.json()) as SignalResponse;
     setAlertPreview(payload.alert_sent ? "LINE alert sent." : "LINE alert not sent. Check LINE env vars or signal state.");
+  }
+
+  async function runBacktest() {
+    const response = await fetch(`${apiUrl}/backtest`, {
+      body: JSON.stringify({
+        symbol: "BNBUSDT",
+        interval: "1m",
+        limit: backtestLimit,
+        lookahead_candles: 30,
+        starting_balance: paperBalance
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    });
+    if (!response.ok) {
+      setPaperStatus("Backtest failed. Backend is not ready.");
+      return;
+    }
+    setBacktestResult((await response.json()) as BacktestResult);
+  }
+
+  async function runPaperOnce() {
+    const response = await fetch(`${apiUrl}/paper-run`, {
+      body: JSON.stringify({
+        enabled: paperEnabled,
+        balance: paperBalance,
+        risk_pct: paperRisk,
+        daily_pnl_pct: dailyPnl,
+        active_bnb_positions: activePositions
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    });
+    if (!response.ok) {
+      setPaperStatus("Paper run failed. Backend is not ready.");
+      return;
+    }
+    const payload = (await response.json()) as PaperRunResponse;
+    setPaperStatus(payload.message);
+    setLearningSummary(payload.learning_summary);
   }
 
   const detectedSetups = useMemo(() => {
@@ -296,6 +391,81 @@ export default function Dashboard() {
           <p className="saveState">Supabase: {runtimeStatus?.supabase_configured ? "configured" : "not configured"}</p>
           <p className="saveState">LINE: {runtimeStatus?.line_configured ? "configured" : "not configured"}</p>
           <p className="saveState">Trading: {runtimeStatus?.real_trading ? "live" : "signal-only"}</p>
+        </div>
+      </section>
+
+      <section className="labGrid">
+        <div className="panel">
+          <div className="panelHeader">
+            <span>Backtest Lab</span>
+            <History size={18} />
+          </div>
+          <label className="pnlControl">
+            Candle Limit
+            <input
+              max="1500"
+              min="150"
+              step="50"
+              type="number"
+              value={backtestLimit}
+              onChange={(event) => setBacktestLimit(Number(event.target.value))}
+            />
+          </label>
+          <button className="wideButton" onClick={runBacktest}>
+            <Play size={16} />
+            Run Backtest
+          </button>
+          {backtestResult ? (
+            <div className="resultGrid">
+              <Field label="Trades" value={`${backtestResult.trades}`} />
+              <Field label="Win Rate" value={`${backtestResult.win_rate}%`} />
+              <Field label="PnL" value={`${backtestResult.total_pnl_pct}%`} />
+              <Field label="Max DD" value={`${backtestResult.max_drawdown_pct}%`} />
+            </div>
+          ) : (
+            <p className="empty">Run historical test before trusting any setup.</p>
+          )}
+          {backtestResult && <p className="saveState">{backtestResult.learning_note}</p>}
+        </div>
+
+        <div className="panel">
+          <div className="panelHeader">
+            <span>Paper Trading</span>
+            <FlaskConical size={18} />
+          </div>
+          <label className="toggleRow">
+            <input type="checkbox" checked={paperEnabled} onChange={(event) => setPaperEnabled(event.target.checked)} />
+            Paper mode enabled
+          </label>
+          <div className="orderGrid">
+            <label className="pnlControl">
+              Balance USDT
+              <input type="number" value={paperBalance} onChange={(event) => setPaperBalance(Number(event.target.value))} />
+            </label>
+            <label className="pnlControl">
+              Risk %
+              <input max="5" min="0.1" step="0.1" type="number" value={paperRisk} onChange={(event) => setPaperRisk(Number(event.target.value))} />
+            </label>
+          </div>
+          <button className="wideButton" onClick={runPaperOnce}>
+            <Play size={16} />
+            Run Paper Tick
+          </button>
+          <p className="saveState">{paperStatus}</p>
+        </div>
+
+        <div className="panel learningPanel">
+          <div className="panelHeader">
+            <span>AI Learning Memory</span>
+            <Brain size={18} />
+          </div>
+          <div className="resultGrid">
+            <Field label="Samples" value={`${learningSummary?.samples ?? 0}`} />
+            <Field label="Win Rate" value={`${learningSummary?.win_rate ?? 0}%`} />
+            <Field label="Wins / Losses" value={`${learningSummary?.wins ?? 0} / ${learningSummary?.losses ?? 0}`} />
+            <Field label="Paper PnL" value={`${learningSummary?.total_pnl_pct ?? 0}%`} />
+          </div>
+          <p className="personality">{learningSummary?.note ?? "AI learning: waiting for paper and backtest samples."}</p>
         </div>
       </section>
     </main>

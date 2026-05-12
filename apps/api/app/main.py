@@ -3,11 +3,14 @@ from __future__ import annotations
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
+from .backtest import run_backtest
 from .binance_client import BinanceFuturesClient
 from .config import get_settings
 from .journal import recent_signals, save_signal
+from .learning import summarize_learning
 from .line_alert import send_line_alert
-from .models import RuntimeStatus, TestnetOrderPreviewRequest
+from .models import BacktestRequest, PaperRunRequest, PaperRunResponse, RuntimeStatus, TestnetOrderPreviewRequest
+from .paper import active_paper_trade, load_paper_trades, maybe_close_trade, open_paper_trade
 from .signal_engine import generate_signal
 
 settings = get_settings()
@@ -79,6 +82,57 @@ async def signal(
 async def history(limit: int = Query(default=25, ge=1, le=100)):
     settings = get_settings()
     return {"items": recent_signals(settings, limit)}
+
+
+@app.post("/api/backtest")
+async def backtest(request: BacktestRequest):
+    settings = get_settings()
+    client = BinanceFuturesClient(settings)
+    candles = await client.raw_klines(request.symbol, interval=request.interval, limit=request.limit)
+    return run_backtest(candles, settings, request)
+
+
+@app.get("/api/learning")
+async def learning():
+    settings = get_settings()
+    return summarize_learning([], load_paper_trades(settings, limit=500))
+
+
+@app.post("/api/paper/run", response_model=PaperRunResponse)
+async def paper_run(request: PaperRunRequest):
+    settings = get_settings()
+    client = BinanceFuturesClient(settings)
+    snapshot = await client.snapshot("BNBUSDT")
+    signal_response = generate_signal(
+        snapshot,
+        settings,
+        daily_pnl_pct=request.daily_pnl_pct,
+        active_bnb_positions=request.active_bnb_positions,
+    )
+
+    existing = active_paper_trade(settings)
+    closed = maybe_close_trade(settings, existing, signal_response.price) if existing else None
+    active = active_paper_trade(settings)
+    message = "Paper engine checked current market. No real order was sent."
+
+    if request.enabled and active is None and closed is None:
+        active = open_paper_trade(settings, signal_response, request.balance, request.risk_pct)
+        if active:
+            message = "Opened a paper-only simulated BNB position."
+        elif signal_response.signal in {"LONG", "SHORT"}:
+            message = "Signal found, but paper entry was blocked by risk rules."
+    elif closed:
+        message = f"Closed paper trade as {closed.outcome}."
+
+    learning_summary = summarize_learning([], load_paper_trades(settings, limit=500))
+    return PaperRunResponse(
+        ok=True,
+        message=message,
+        signal=signal_response.signal,
+        active_trade=active,
+        closed_trade=closed,
+        learning_summary=learning_summary,
+    )
 
 
 @app.post("/api/testnet/order")

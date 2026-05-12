@@ -44,3 +44,44 @@ create policy "Allow signal history reads"
   for select
   to anon, authenticated
   using (true);
+
+create table if not exists public.paper_trades (
+  id text primary key,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  symbol text not null default 'BNBUSDT',
+  side text not null check (side in ('LONG', 'SHORT')),
+  status text not null check (status in ('OPEN', 'CLOSED')),
+  entry numeric not null,
+  take_profit numeric not null,
+  stop_loss numeric not null,
+  size numeric not null default 0,
+  confidence integer not null check (confidence between 0 and 100),
+  opened_price numeric not null,
+  current_price numeric not null,
+  exit_price numeric,
+  pnl_pct numeric not null default 0,
+  pnl_usdt numeric not null default 0,
+  outcome text not null default 'OPEN',
+  reasoning_th text not null default '',
+  raw_payload jsonb not null default '{}'::jsonb
+);
+
+create index if not exists paper_trades_created_at_idx
+  on public.paper_trades (created_at desc);
+
+alter table public.paper_trades enable row level security;
+
+drop policy if exists "Allow paper trade inserts" on public.paper_trades;
+create policy "Allow paper trade inserts"
+  on public.paper_trades
+  for insert
+  to anon, authenticated
+  with check (true);
+
+drop policy if exists "Allow paper trade reads" on public.paper_trades;
+create policy "Allow paper trade reads"
+  on public.paper_trades
+  for select
+  to anon, authenticated
+  using (true);

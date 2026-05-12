@@ -37,6 +37,24 @@ class BinanceFuturesClient:
             for row in payload
         ]
 
+    async def raw_klines(self, symbol: str, interval: str = "1m", limit: int = 500) -> list[dict]:
+        payload = await self._get(
+            "/fapi/v1/klines",
+            {"symbol": symbol, "interval": interval, "limit": max(120, min(limit, 1500))},
+        )
+        return [
+            {
+                "open_time": int(row[0]),
+                "open": float(row[1]),
+                "high": float(row[2]),
+                "low": float(row[3]),
+                "close": float(row[4]),
+                "volume": float(row[5]),
+                "close_time": int(row[6]),
+            }
+            for row in payload
+        ]
+
     async def funding_rate(self, symbol: str) -> float:
         payload = await self._get("/fapi/v1/premiumIndex", {"symbol": symbol})
         return float(payload.get("lastFundingRate", 0))
