@@ -13,6 +13,10 @@ class MarketSnapshot(BaseModel):
     btc_price: float
     funding_rate: float
     open_interest: float
+    open_interest_change_pct: float = 0
+    long_short_ratio: float = 1
+    taker_buy_sell_ratio: float = 1
+    taker_buy_volume_ratio: float = 0.5
     candles: list[list[float]]
 
 
@@ -36,6 +40,11 @@ class DetectionSnapshot(BaseModel):
     fake_breakdown: bool = False
     trapped_longs: bool = False
     trapped_shorts: bool = False
+    oi_expansion: bool = False
+    crowded_longs: bool = False
+    crowded_shorts: bool = False
+    taker_buy_pressure: bool = False
+    taker_sell_pressure: bool = False
 
 
 class TradeSuggestion(BaseModel):

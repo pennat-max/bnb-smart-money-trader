@@ -21,6 +21,12 @@ def _confidence(base: int, detections: DetectionSnapshot, trend_aligned: bool) -
         score += 6
     if detections.trapped_longs or detections.trapped_shorts:
         score += 7
+    if detections.oi_expansion:
+        score += 4
+    if detections.crowded_longs or detections.crowded_shorts:
+        score += 3
+    if detections.taker_buy_pressure or detections.taker_sell_pressure:
+        score += 3
     if trend_aligned:
         score += 8
     return max(0, min(score, 95))
@@ -33,7 +39,7 @@ def generate_signal(
     active_bnb_positions: int = 0,
 ) -> SignalResponse:
     indicators = calculate_indicators(snapshot.candles)
-    detections = detect_smart_money(snapshot.candles)
+    detections = detect_smart_money(snapshot)
     closes = [row[3] for row in snapshot.candles]
     price = snapshot.price
     btc_change = closes[-1] - closes[-8] if len(closes) >= 8 else 0
@@ -134,6 +140,16 @@ def _pattern_text(detections: DetectionSnapshot) -> str:
         names.append("trapped longs")
     if detections.trapped_shorts:
         names.append("trapped shorts")
+    if detections.oi_expansion:
+        names.append("OI expansion")
+    if detections.crowded_longs:
+        names.append("crowded longs")
+    if detections.crowded_shorts:
+        names.append("crowded shorts")
+    if detections.taker_buy_pressure:
+        names.append("taker buy pressure")
+    if detections.taker_sell_pressure:
+        names.append("taker sell pressure")
     return "เจอ " + ", ".join(names) + "." if names else "ยังไม่เจอ smart money trap ชัดเจน."
 
 

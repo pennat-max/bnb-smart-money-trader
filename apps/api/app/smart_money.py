@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from .models import DetectionSnapshot
+from .models import DetectionSnapshot, MarketSnapshot
 
 
-def detect_smart_money(candles: list[list[float]]) -> DetectionSnapshot:
+def detect_smart_money(snapshot: MarketSnapshot) -> DetectionSnapshot:
+    candles = snapshot.candles
     if len(candles) < 25:
         return DetectionSnapshot()
 
@@ -25,6 +26,11 @@ def detect_smart_money(candles: list[list[float]]) -> DetectionSnapshot:
     stop_hunt = volume_spike and (wick_up > body * 1.6 or wick_down > body * 1.6)
     trapped_longs = fake_breakout and close < open_price and wick_up / range_size > 0.35
     trapped_shorts = fake_breakdown and close > open_price and wick_down / range_size > 0.35
+    oi_expansion = snapshot.open_interest_change_pct > 0.35
+    crowded_longs = snapshot.long_short_ratio > 1.6
+    crowded_shorts = snapshot.long_short_ratio < 0.7
+    taker_buy_pressure = snapshot.taker_buy_volume_ratio > 0.58 or snapshot.taker_buy_sell_ratio > 1.25
+    taker_sell_pressure = snapshot.taker_buy_volume_ratio < 0.42 or snapshot.taker_buy_sell_ratio < 0.8
 
     return DetectionSnapshot(
         liquidity_sweep=liquidity_sweep,
@@ -33,4 +39,9 @@ def detect_smart_money(candles: list[list[float]]) -> DetectionSnapshot:
         fake_breakdown=fake_breakdown,
         trapped_longs=trapped_longs,
         trapped_shorts=trapped_shorts,
+        oi_expansion=oi_expansion,
+        crowded_longs=crowded_longs,
+        crowded_shorts=crowded_shorts,
+        taker_buy_pressure=taker_buy_pressure,
+        taker_sell_pressure=taker_sell_pressure,
     )

@@ -71,9 +71,17 @@ WIN_RATE_PROFILES = [
 ]
 
 
-def run_backtest(candles: list[dict], settings: Settings, request: BacktestRequest) -> BacktestResult:
+def run_backtest(
+    candles: list[dict],
+    settings: Settings,
+    request: BacktestRequest,
+    derivatives_history: list[dict] | None = None,
+) -> BacktestResult:
     if request.optimize_for_win_rate:
-        results = [run_backtest_profile(candles, settings, request, profile) for profile in WIN_RATE_PROFILES]
+        results = [
+            run_backtest_profile(candles, settings, request, profile, derivatives_history=derivatives_history)
+            for profile in WIN_RATE_PROFILES
+        ]
         eligible = [result for result in results if result.trades >= request.min_trades]
         profile_by_name = {profile.name: profile for profile in WIN_RATE_PROFILES}
         smart_eligible = [result for result in eligible if profile_by_name[result.profile].smart_priority]
@@ -118,7 +126,7 @@ def run_backtest(candles: list[dict], settings: Settings, request: BacktestReque
         )
         return best
 
-    return run_backtest_profile(candles, settings, request, BASE_PROFILE)
+    return run_backtest_profile(candles, settings, request, BASE_PROFILE, derivatives_history=derivatives_history)
 
 
 def run_backtest_profile(
@@ -126,6 +134,7 @@ def run_backtest_profile(
     settings: Settings,
     request: BacktestRequest,
     profile: BacktestProfile,
+    derivatives_history: list[dict] | None = None,
 ) -> BacktestResult:
     trades: list[BacktestTrade] = []
     balance = request.starting_balance
@@ -135,12 +144,17 @@ def run_backtest_profile(
     for index in range(120, len(candles) - request.lookahead_candles):
         window = candles[index - 120 : index]
         current = candles[index]
+        derivatives = derivatives_context_at(derivatives_history or [], current["open_time"])
         snapshot = MarketSnapshot(
             symbol=request.symbol,
             price=current["close"],
             btc_price=0,
             funding_rate=0,
             open_interest=0,
+            open_interest_change_pct=derivatives["open_interest_change_pct"],
+            long_short_ratio=derivatives["long_short_ratio"],
+            taker_buy_sell_ratio=derivatives["taker_buy_sell_ratio"],
+            taker_buy_volume_ratio=derivatives["taker_buy_volume_ratio"],
             candles=[[row["open"], row["high"], row["low"], row["close"], row["volume"]] for row in window],
         )
         signal = generate_signal(snapshot, settings)
@@ -240,3 +254,22 @@ def run_backtest_profile(
         tested_profiles=[],
         recent_trades=trades[-12:],
     )
+
+
+def derivatives_context_at(history: list[dict], timestamp: int) -> dict:
+    context = {
+        "open_interest_change_pct": 0,
+        "long_short_ratio": 1,
+        "taker_buy_sell_ratio": 1,
+        "taker_buy_volume_ratio": 0.5,
+    }
+    for row in history:
+        if row["timestamp"] > timestamp:
+            break
+        context = {
+            "open_interest_change_pct": row.get("open_interest_change_pct", 0),
+            "long_short_ratio": row.get("long_short_ratio", 1),
+            "taker_buy_sell_ratio": row.get("taker_buy_sell_ratio", 1),
+            "taker_buy_volume_ratio": row.get("taker_buy_volume_ratio", 0.5),
+        }
+    return context

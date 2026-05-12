@@ -171,7 +171,8 @@ async def backtest(request: BacktestRequest):
     settings = get_settings()
     client = BinanceFuturesClient(settings)
     candles = await client.raw_klines_for_days(request.symbol, interval=request.interval, days=request.period_days)
-    return run_backtest(candles, settings, request)
+    derivatives = await client.derivatives_history(request.symbol, period=request.interval, limit=500)
+    return run_backtest(candles, settings, request, derivatives_history=derivatives)
 
 
 @app.get("/api/learning")
