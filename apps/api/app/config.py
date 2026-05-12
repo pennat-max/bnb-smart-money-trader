@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     line_alert_enabled: bool = Field(default=False, alias="LINE_ALERT_ENABLED")
     line_channel_access_token: str | None = Field(default=None, alias="LINE_CHANNEL_ACCESS_TOKEN")
     line_user_id: str | None = Field(default=None, alias="LINE_USER_ID")
-    paper_trading_enabled: bool = Field(default=False, alias="PAPER_TRADING_ENABLED")
+    paper_trading_enabled: bool = Field(default=True, alias="PAPER_TRADING_ENABLED")
     paper_trading_interval_seconds: int = Field(default=60, alias="PAPER_TRADING_INTERVAL_SECONDS")
     paper_starting_balance: float = Field(default=1000, alias="PAPER_STARTING_BALANCE")
     paper_risk_pct: float = Field(default=1.0, alias="PAPER_RISK_PCT")
