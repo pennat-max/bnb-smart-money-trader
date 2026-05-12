@@ -42,6 +42,7 @@ type SignalResponse = {
   risk_rules: Record<string, boolean | number | string>;
   active_position: Record<string, string | number | null>;
   personality_log: string;
+  journal_backend: "local" | "supabase" | "none";
 };
 
 type HistoryItem = {
@@ -217,7 +218,7 @@ export default function Dashboard() {
             <Brain size={18} />
           </div>
           <p className="personality">{signal?.personality_log ?? "BNB bot is booting..."}</p>
-          <p className="saveState">Journal: {signal?.journal_saved ? "saved to journal" : "local response only"}</p>
+          <p className="saveState">Journal: {journalLabel(signal)}</p>
         </div>
       </section>
     </main>
@@ -279,4 +280,11 @@ function num(value?: number) {
 
 function priceOrDash(value?: number | null) {
   return value ? usd(value) : "--";
+}
+
+function journalLabel(signal: SignalResponse | null) {
+  if (!signal?.journal_saved) return "local response only";
+  if (signal.journal_backend === "supabase") return "saved to Supabase";
+  if (signal.journal_backend === "local") return "saved to sandbox journal";
+  return "saved to journal";
 }

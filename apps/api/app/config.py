@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     binance_api_secret: str | None = Field(default=None, alias="BINANCE_API_SECRET")
     supabase_url: str | None = Field(default=None, alias="SUPABASE_URL")
     supabase_service_role_key: str | None = Field(default=None, alias="SUPABASE_SERVICE_ROLE_KEY")
+    supabase_key: str | None = Field(default=None, alias="SUPABASE_KEY")
     local_journal_path: str = Field(default="data/signals.jsonl", alias="LOCAL_JOURNAL_PATH")
     frontend_origins: str = Field(
         default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001",
@@ -32,6 +33,10 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.frontend_origins.split(",") if origin.strip()]
+
+    @property
+    def active_supabase_key(self) -> str | None:
+        return self.supabase_service_role_key or self.supabase_key
 
 
 @lru_cache

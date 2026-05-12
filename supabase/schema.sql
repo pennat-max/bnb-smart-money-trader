@@ -28,3 +28,19 @@ create index if not exists trade_signals_created_at_idx
 
 create index if not exists trade_signals_symbol_idx
   on public.trade_signals (symbol);
+
+alter table public.trade_signals enable row level security;
+
+drop policy if exists "Allow signal inserts" on public.trade_signals;
+create policy "Allow signal inserts"
+  on public.trade_signals
+  for insert
+  to anon, authenticated
+  with check (true);
+
+drop policy if exists "Allow signal history reads" on public.trade_signals;
+create policy "Allow signal history reads"
+  on public.trade_signals
+  for select
+  to anon, authenticated
+  using (true);

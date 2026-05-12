@@ -10,15 +10,15 @@ from .models import SignalResponse
 
 
 def get_supabase(settings: Settings) -> Client | None:
-    if not settings.supabase_url or not settings.supabase_service_role_key:
+    if not settings.supabase_url or not settings.active_supabase_key:
         return None
-    return create_client(settings.supabase_url, settings.supabase_service_role_key)
+    return create_client(settings.supabase_url, settings.active_supabase_key)
 
 
-def save_signal(settings: Settings, signal: SignalResponse) -> bool:
+def save_signal(settings: Settings, signal: SignalResponse) -> str:
     client = get_supabase(settings)
     if client is None:
-        return save_signal_local(settings, signal)
+        return "local" if save_signal_local(settings, signal) else "none"
 
     payload = signal.model_dump(mode="json")
     client.table("trade_signals").insert(
@@ -43,7 +43,7 @@ def save_signal(settings: Settings, signal: SignalResponse) -> bool:
             "raw_payload": payload,
         }
     ).execute()
-    return True
+    return "supabase"
 
 
 def recent_signals(settings: Settings, limit: int = 25) -> list[dict]:

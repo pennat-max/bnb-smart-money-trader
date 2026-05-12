@@ -45,7 +45,8 @@ async def signal(
         daily_pnl_pct=daily_pnl_pct,
         active_bnb_positions=active_bnb_positions,
     )
-    response.journal_saved = save_signal(settings, response)
+    response.journal_backend = save_signal(settings, response)
+    response.journal_saved = response.journal_backend != "none"
     return response
 
 

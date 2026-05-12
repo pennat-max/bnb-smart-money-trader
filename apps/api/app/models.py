@@ -66,3 +66,4 @@ class SignalResponse(BaseModel):
     active_position: dict[str, str | float | None]
     personality_log: str
     journal_saved: bool = False
+    journal_backend: Literal["local", "supabase", "none"] = "none"
