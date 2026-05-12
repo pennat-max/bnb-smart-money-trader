@@ -85,3 +85,11 @@ create policy "Allow paper trade reads"
   for select
   to anon, authenticated
   using (true);
+
+drop policy if exists "Allow paper trade updates" on public.paper_trades;
+create policy "Allow paper trade updates"
+  on public.paper_trades
+  for update
+  to anon, authenticated
+  using (true)
+  with check (true);

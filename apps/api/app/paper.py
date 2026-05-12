@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
+import httpx
+
 from .config import Settings
 from .models import PaperTradeRecord, SignalResponse
+
+logger = logging.getLogger(__name__)
 
 
 def paper_path(settings: Settings) -> Path:
@@ -15,6 +20,10 @@ def paper_path(settings: Settings) -> Path:
 
 
 def load_paper_trades(settings: Settings, limit: int = 200) -> list[PaperTradeRecord]:
+    supabase_records = load_paper_trades_supabase(settings, limit)
+    if supabase_records:
+        return supabase_records
+
     path = paper_path(settings)
     if not path.exists():
         return []
@@ -29,6 +38,9 @@ def load_paper_trades(settings: Settings, limit: int = 200) -> list[PaperTradeRe
 
 
 def append_paper_trade(settings: Settings, trade: PaperTradeRecord) -> None:
+    if append_paper_trade_supabase(settings, trade):
+        return
+
     path = paper_path(settings)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
@@ -113,3 +125,70 @@ def open_paper_trade(settings: Settings, signal: SignalResponse, balance: float,
     )
     append_paper_trade(settings, trade)
     return trade
+
+
+def supabase_rest_headers(settings: Settings) -> dict[str, str] | None:
+    key = settings.active_supabase_key
+    if not settings.supabase_url or not key:
+        return None
+
+    headers = {
+        "apikey": key,
+        "Content-Type": "application/json",
+    }
+    if not key.startswith("sb_publishable_"):
+        headers["Authorization"] = f"Bearer {key}"
+    return headers
+
+
+def paper_record(trade: PaperTradeRecord) -> dict:
+    payload = trade.model_dump(mode="json")
+    return {
+        **payload,
+        "raw_payload": payload,
+    }
+
+
+def append_paper_trade_supabase(settings: Settings, trade: PaperTradeRecord) -> bool:
+    headers = supabase_rest_headers(settings)
+    if headers is None or not settings.supabase_url:
+        return False
+
+    url = f"{settings.supabase_url.rstrip('/')}/rest/v1/paper_trades"
+    try:
+        with httpx.Client(timeout=10) as client:
+            response = client.post(
+                url,
+                params={"on_conflict": "id"},
+                json=paper_record(trade),
+                headers={**headers, "Prefer": "resolution=merge-duplicates,return=minimal"},
+            )
+            response.raise_for_status()
+        return True
+    except Exception:
+        logger.exception("Supabase REST paper trade insert failed")
+        return False
+
+
+def load_paper_trades_supabase(settings: Settings, limit: int = 200) -> list[PaperTradeRecord]:
+    headers = supabase_rest_headers(settings)
+    if headers is None or not settings.supabase_url:
+        return []
+
+    url = f"{settings.supabase_url.rstrip('/')}/rest/v1/paper_trades"
+    params = {
+        "select": "*",
+        "order": "updated_at.asc",
+        "limit": str(limit),
+    }
+    try:
+        with httpx.Client(timeout=10) as client:
+            response = client.get(url, params=params, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+        if not isinstance(data, list):
+            return []
+        return [PaperTradeRecord.model_validate(item) for item in data]
+    except Exception:
+        logger.exception("Supabase REST paper trade fetch failed")
+        return []

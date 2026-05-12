@@ -65,6 +65,8 @@ type RuntimeStatus = {
   journal_backend: "local" | "supabase" | "none" | "unknown";
   line_alert_enabled: boolean;
   line_configured: boolean;
+  paper_trading_enabled: boolean;
+  paper_trading_interval_seconds: number;
   risk_daily_target_pct: number;
   risk_max_daily_loss_pct: number;
   risk_min_confidence: number;
@@ -390,6 +392,9 @@ export default function Dashboard() {
           <p className="saveState">Journal: {journalLabel(signal)}</p>
           <p className="saveState">Supabase: {runtimeStatus?.supabase_configured ? "configured" : "not configured"}</p>
           <p className="saveState">LINE: {runtimeStatus?.line_configured ? "configured" : "not configured"}</p>
+          <p className="saveState">
+            Paper loop: {runtimeStatus?.paper_trading_enabled ? `on / ${runtimeStatus.paper_trading_interval_seconds}s` : "manual only"}
+          </p>
           <p className="saveState">Trading: {runtimeStatus?.real_trading ? "live" : "signal-only"}</p>
         </div>
       </section>

@@ -88,6 +88,8 @@ class RuntimeStatus(BaseModel):
     journal_backend: Literal["local", "supabase", "none", "unknown"]
     line_alert_enabled: bool
     line_configured: bool
+    paper_trading_enabled: bool
+    paper_trading_interval_seconds: int
     risk_daily_target_pct: float
     risk_max_daily_loss_pct: float
     risk_min_confidence: int

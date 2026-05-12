@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+import logging
+
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -15,6 +18,8 @@ from .signal_engine import generate_signal
 
 settings = get_settings()
 app = FastAPI(title="BNB Smart Money AI Trader API", version="0.1.0")
+logger = logging.getLogger(__name__)
+paper_loop_task: asyncio.Task | None = None
 
 app.add_middleware(
     CORSMiddleware,
@@ -24,6 +29,73 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+async def run_paper_cycle(request: PaperRunRequest) -> PaperRunResponse:
+    settings = get_settings()
+    client = BinanceFuturesClient(settings)
+    snapshot = await client.snapshot("BNBUSDT")
+    signal_response = generate_signal(
+        snapshot,
+        settings,
+        daily_pnl_pct=request.daily_pnl_pct,
+        active_bnb_positions=request.active_bnb_positions,
+    )
+
+    existing = active_paper_trade(settings)
+    closed = maybe_close_trade(settings, existing, signal_response.price) if existing else None
+    active = active_paper_trade(settings)
+    message = "Paper engine checked current market. No real order was sent."
+
+    if request.enabled and active is None and closed is None:
+        active = open_paper_trade(settings, signal_response, request.balance, request.risk_pct)
+        if active:
+            message = "Opened a paper-only simulated BNB position."
+        elif signal_response.signal in {"LONG", "SHORT"}:
+            message = "Signal found, but paper entry was blocked by risk rules."
+    elif closed:
+        message = f"Closed paper trade as {closed.outcome}."
+
+    learning_summary = summarize_learning([], load_paper_trades(settings, limit=500))
+    return PaperRunResponse(
+        ok=True,
+        message=message,
+        signal=signal_response.signal,
+        active_trade=active,
+        closed_trade=closed,
+        learning_summary=learning_summary,
+    )
+
+
+async def paper_learning_loop() -> None:
+    while True:
+        settings = get_settings()
+        await asyncio.sleep(max(15, settings.paper_trading_interval_seconds))
+        if not settings.paper_trading_enabled:
+            continue
+        try:
+            await run_paper_cycle(
+                PaperRunRequest(
+                    enabled=True,
+                    balance=settings.paper_starting_balance,
+                    risk_pct=settings.paper_risk_pct,
+                )
+            )
+        except Exception:
+            logger.exception("Paper learning loop tick failed")
+
+
+@app.on_event("startup")
+async def start_paper_loop() -> None:
+    global paper_loop_task
+    if paper_loop_task is None:
+        paper_loop_task = asyncio.create_task(paper_learning_loop())
+
+
+@app.on_event("shutdown")
+async def stop_paper_loop() -> None:
+    if paper_loop_task:
+        paper_loop_task.cancel()
 
 
 @app.get("/health")
@@ -49,6 +121,8 @@ async def runtime_status():
         journal_backend="supabase" if supabase_configured else "local",
         line_alert_enabled=settings.line_alert_enabled,
         line_configured=settings.line_configured,
+        paper_trading_enabled=settings.paper_trading_enabled,
+        paper_trading_interval_seconds=settings.paper_trading_interval_seconds,
         risk_daily_target_pct=settings.risk_daily_target_pct,
         risk_max_daily_loss_pct=settings.risk_max_daily_loss_pct,
         risk_min_confidence=settings.risk_min_confidence,
@@ -100,39 +174,7 @@ async def learning():
 
 @app.post("/api/paper/run", response_model=PaperRunResponse)
 async def paper_run(request: PaperRunRequest):
-    settings = get_settings()
-    client = BinanceFuturesClient(settings)
-    snapshot = await client.snapshot("BNBUSDT")
-    signal_response = generate_signal(
-        snapshot,
-        settings,
-        daily_pnl_pct=request.daily_pnl_pct,
-        active_bnb_positions=request.active_bnb_positions,
-    )
-
-    existing = active_paper_trade(settings)
-    closed = maybe_close_trade(settings, existing, signal_response.price) if existing else None
-    active = active_paper_trade(settings)
-    message = "Paper engine checked current market. No real order was sent."
-
-    if request.enabled and active is None and closed is None:
-        active = open_paper_trade(settings, signal_response, request.balance, request.risk_pct)
-        if active:
-            message = "Opened a paper-only simulated BNB position."
-        elif signal_response.signal in {"LONG", "SHORT"}:
-            message = "Signal found, but paper entry was blocked by risk rules."
-    elif closed:
-        message = f"Closed paper trade as {closed.outcome}."
-
-    learning_summary = summarize_learning([], load_paper_trades(settings, limit=500))
-    return PaperRunResponse(
-        ok=True,
-        message=message,
-        signal=signal_response.signal,
-        active_trade=active,
-        closed_trade=closed,
-        learning_summary=learning_summary,
-    )
+    return await run_paper_cycle(request)
 
 
 @app.post("/api/testnet/order")
