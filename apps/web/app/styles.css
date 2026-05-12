@@ -239,6 +239,31 @@ h1 {
   margin: 14px 0 0;
 }
 
+.actionRow {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 12px;
+}
+
+.actionButton {
+  align-items: center;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  gap: 8px;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 10px;
+}
+
+.actionButton:hover {
+  border-color: rgba(73, 182, 214, 0.7);
+}
+
 .detailsGrid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-top: 14px;
@@ -331,6 +356,7 @@ h1 {
   .metricsGrid,
   .detailsGrid,
   .confidenceRow,
+  .actionRow,
   .orderGrid,
   .denseGrid,
   .setupTags {

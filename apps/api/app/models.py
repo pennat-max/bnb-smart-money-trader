@@ -67,3 +67,28 @@ class SignalResponse(BaseModel):
     personality_log: str
     journal_saved: bool = False
     journal_backend: Literal["local", "supabase", "none"] = "none"
+    alert_sent: bool = False
+
+
+class TestnetOrderPreviewRequest(BaseModel):
+    symbol: str = "BNBUSDT"
+    side: SignalType = "WAIT"
+    entry: float | None = None
+    take_profit: float | None = None
+    stop_loss: float | None = None
+    position_size: float = 0
+    confidence: int = Field(default=0, ge=0, le=100)
+
+
+class RuntimeStatus(BaseModel):
+    mode: str
+    binance_testnet: bool
+    real_trading: bool = False
+    supabase_configured: bool
+    journal_backend: Literal["local", "supabase", "none", "unknown"]
+    line_alert_enabled: bool
+    line_configured: bool
+    risk_daily_target_pct: float
+    risk_max_daily_loss_pct: float
+    risk_min_confidence: int
+    risk_max_active_bnb_positions: int

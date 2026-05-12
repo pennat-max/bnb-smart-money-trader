@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     supabase_service_role_key: str | None = Field(default=None, alias="SUPABASE_SERVICE_ROLE_KEY")
     supabase_key: str | None = Field(default=None, alias="SUPABASE_KEY")
     local_journal_path: str = Field(default="data/signals.jsonl", alias="LOCAL_JOURNAL_PATH")
+    line_alert_enabled: bool = Field(default=False, alias="LINE_ALERT_ENABLED")
+    line_channel_access_token: str | None = Field(default=None, alias="LINE_CHANNEL_ACCESS_TOKEN")
+    line_user_id: str | None = Field(default=None, alias="LINE_USER_ID")
     frontend_origins: str = Field(
         default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001",
         alias="FRONTEND_ORIGINS",
@@ -41,6 +44,10 @@ class Settings(BaseSettings):
     @property
     def active_supabase_key(self) -> str | None:
         return self.supabase_service_role_key or self.supabase_key
+
+    @property
+    def line_configured(self) -> bool:
+        return bool(self.line_channel_access_token and self.line_user_id)
 
 
 @lru_cache

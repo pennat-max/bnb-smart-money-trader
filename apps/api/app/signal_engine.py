@@ -84,8 +84,9 @@ def generate_signal(
         suggestion = TradeSuggestion()
 
     pattern_text = _pattern_text(detections)
+    thai_trend = "ขาขึ้น" if bullish_trend else "ขาลง" if bearish_trend else "ยังไม่ชัด"
     reasoning_th = (
-        f"BNB ตอนนี้เป็น {signal}. EMA/MACD ให้ภาพ {'ขาขึ้น' if bullish_trend else 'ขาลง' if bearish_trend else 'ยังไม่ชัด'}; "
+        f"BNB ตอนนี้เป็น {signal}. EMA/MACD ให้ภาพ {thai_trend}; "
         f"RSI {indicators.rsi:.1f}. {pattern_text} Funding {snapshot.funding_rate:.4%}, OI {snapshot.open_interest:.0f}. "
         "ระบบยังเป็น signal-only ไม่มีการส่งออเดอร์จริง."
     )
@@ -94,7 +95,7 @@ def generate_signal(
         f"with RSI {indicators.rsi:.1f}, MACD histogram {indicators.macd_histogram:.4f}, "
         f"funding {snapshot.funding_rate:.4%}, and open interest {snapshot.open_interest:.0f}."
     )
-    personality_log = _personality_log(signal, confidence, risk_score, detections)
+    personality_log = _personality_log(signal, confidence, int(risk_score), detections)
 
     return SignalResponse(
         created_at=datetime.now(timezone.utc),

@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, AlertTriangle, BarChart3, Brain, Clock3, ShieldCheck, TrendingDown, TrendingUp } from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, Bell, Brain, Clock3, FlaskConical, ShieldCheck, TrendingDown, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 type SignalType = "LONG" | "SHORT" | "WAIT" | "CANCEL";
@@ -43,6 +43,7 @@ type SignalResponse = {
   active_position: Record<string, string | number | null>;
   personality_log: string;
   journal_backend: "local" | "supabase" | "none";
+  alert_sent: boolean;
 };
 
 type HistoryItem = {
@@ -56,6 +57,20 @@ type HistoryItem = {
   personality_log: string;
 };
 
+type RuntimeStatus = {
+  mode: string;
+  binance_testnet: boolean;
+  real_trading: boolean;
+  supabase_configured: boolean;
+  journal_backend: "local" | "supabase" | "none" | "unknown";
+  line_alert_enabled: boolean;
+  line_configured: boolean;
+  risk_daily_target_pct: number;
+  risk_max_daily_loss_pct: number;
+  risk_min_confidence: number;
+  risk_max_active_bnb_positions: number;
+};
+
 const apiUrl = "";
 
 export default function Dashboard() {
@@ -64,14 +79,23 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dailyPnl, setDailyPnl] = useState(0);
+  const [activePositions, setActivePositions] = useState(0);
+  const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null);
+  const [orderPreview, setOrderPreview] = useState<string>("No testnet preview yet.");
+  const [alertPreview, setAlertPreview] = useState<string>("LINE alert is optional and off until env vars are configured.");
 
   async function refresh() {
     try {
       setError(null);
-      const response = await fetch(`${apiUrl}/live?daily_pnl_pct=${dailyPnl}`);
+      const response = await fetch(`${apiUrl}/live?daily_pnl_pct=${dailyPnl}&active_bnb_positions=${activePositions}`);
       if (!response.ok) throw new Error("API signal request failed");
       const data = (await response.json()) as SignalResponse;
       setSignal(data);
+
+      const statusResponse = await fetch(`${apiUrl}/status`);
+      if (statusResponse.ok) {
+        setRuntimeStatus((await statusResponse.json()) as RuntimeStatus);
+      }
 
       const historyResponse = await fetch(`${apiUrl}/journal?limit=12`);
       if (historyResponse.ok) {
@@ -89,7 +113,36 @@ export default function Dashboard() {
     refresh();
     const id = window.setInterval(refresh, 15000);
     return () => window.clearInterval(id);
-  }, [dailyPnl]);
+  }, [dailyPnl, activePositions]);
+
+  async function previewTestnetOrder() {
+    if (!signal) return;
+    const response = await fetch(`${apiUrl}/testnet-order`, {
+      body: JSON.stringify({
+        symbol: signal.symbol,
+        side: signal.signal,
+        entry: signal.suggestion.entry,
+        take_profit: signal.suggestion.take_profit,
+        stop_loss: signal.suggestion.stop_loss,
+        position_size: signal.suggestion.position_size,
+        confidence: signal.confidence
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    });
+    const payload = await response.json();
+    setOrderPreview(payload.message ?? "Preview checked.");
+  }
+
+  async function sendLinePreview() {
+    const response = await fetch(`${apiUrl}/live?daily_pnl_pct=${dailyPnl}&active_bnb_positions=${activePositions}&send_alert=true`);
+    if (!response.ok) {
+      setAlertPreview("LINE alert request failed.");
+      return;
+    }
+    const payload = (await response.json()) as SignalResponse;
+    setAlertPreview(payload.alert_sent ? "LINE alert sent." : "LINE alert not sent. Check LINE env vars or signal state.");
+  }
 
   const detectedSetups = useMemo(() => {
     if (!signal) return [];
@@ -151,7 +204,19 @@ export default function Dashboard() {
             <Field label="SL" value={priceOrDash(signal?.suggestion.stop_loss)} />
             <Field label="Size" value={`${signal?.suggestion.position_size ?? 0} BNB`} />
           </div>
+          <div className="actionRow">
+            <button className="actionButton" onClick={previewTestnetOrder}>
+              <FlaskConical size={16} />
+              Testnet Preview
+            </button>
+            <button className="actionButton" onClick={sendLinePreview}>
+              <Bell size={16} />
+              LINE Test
+            </button>
+          </div>
           <div className="safetyLine">No real orders. Testnet-only order testing is locked behind backend safeguards.</div>
+          <div className="safetyLine">{orderPreview}</div>
+          <div className="safetyLine">{alertPreview}</div>
         </div>
       </section>
 
@@ -180,11 +245,20 @@ export default function Dashboard() {
             Daily PnL %
             <input type="number" step="0.1" value={dailyPnl} onChange={(event) => setDailyPnl(Number(event.target.value))} />
           </label>
+          <label className="pnlControl">
+            Active BNB Positions
+            <input
+              min="0"
+              type="number"
+              value={activePositions}
+              onChange={(event) => setActivePositions(Number(event.target.value))}
+            />
+          </label>
           <div className="ruleList">
-            <Rule ok={Boolean(signal?.risk_rules.confidence_ok)} label="Confidence >= 70" />
-            <Rule ok={!Boolean(signal?.risk_rules.daily_loss_exceeded)} label="Max daily loss 2%" />
-            <Rule ok={!Boolean(signal?.risk_rules.daily_target_reached)} label="Daily target 1%" />
-            <Rule ok={Boolean(signal?.risk_rules.position_slot_available)} label="Max 1 active BNB position" />
+            <Rule ok={Boolean(signal?.risk_rules.confidence_ok)} label={`Confidence >= ${runtimeStatus?.risk_min_confidence ?? 70}`} />
+            <Rule ok={!Boolean(signal?.risk_rules.daily_loss_exceeded)} label={`Max daily loss ${runtimeStatus?.risk_max_daily_loss_pct ?? 2}%`} />
+            <Rule ok={!Boolean(signal?.risk_rules.daily_target_reached)} label={`Daily target ${runtimeStatus?.risk_daily_target_pct ?? 1}%`} />
+            <Rule ok={Boolean(signal?.risk_rules.position_slot_available)} label={`Max ${runtimeStatus?.risk_max_active_bnb_positions ?? 1} active BNB position`} />
           </div>
         </div>
 
@@ -219,6 +293,9 @@ export default function Dashboard() {
           </div>
           <p className="personality">{signal?.personality_log ?? "BNB bot is booting..."}</p>
           <p className="saveState">Journal: {journalLabel(signal)}</p>
+          <p className="saveState">Supabase: {runtimeStatus?.supabase_configured ? "configured" : "not configured"}</p>
+          <p className="saveState">LINE: {runtimeStatus?.line_configured ? "configured" : "not configured"}</p>
+          <p className="saveState">Trading: {runtimeStatus?.real_trading ? "live" : "signal-only"}</p>
         </div>
       </section>
     </main>
