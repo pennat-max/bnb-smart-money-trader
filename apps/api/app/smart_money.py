@@ -31,6 +31,21 @@ def detect_smart_money(snapshot: MarketSnapshot) -> DetectionSnapshot:
     crowded_shorts = snapshot.long_short_ratio < 0.7
     taker_buy_pressure = snapshot.taker_buy_volume_ratio > 0.58 or snapshot.taker_buy_sell_ratio > 1.25
     taker_sell_pressure = snapshot.taker_buy_volume_ratio < 0.42 or snapshot.taker_buy_sell_ratio < 0.8
+    older_window = candles[-41:-21] if len(candles) >= 45 else candles[-25:-13]
+    recent_high = max(row[1] for row in previous_window)
+    recent_low = min(row[2] for row in previous_window)
+    older_high = max(row[1] for row in older_window)
+    older_low = min(row[2] for row in older_window)
+    bullish_market_structure = recent_high > older_high and recent_low > older_low
+    bearish_market_structure = recent_high < older_high and recent_low < older_low
+    break_of_structure = close > prior_high or close < prior_low
+    change_of_character = (bearish_market_structure and close > prior_high) or (bullish_market_structure and close < prior_low)
+    bullish_fvg = len(candles) >= 3 and candles[-3][1] < low and close > open_price
+    bearish_fvg = len(candles) >= 3 and candles[-3][2] > high and close < open_price
+    average_body = sum(abs(row[3] - row[0]) for row in previous_window) / len(previous_window)
+    displacement = body > average_body * 1.6 and volume > average_volume * 1.2
+    bullish_order_block = displacement and close > open_price and any(row[3] < row[0] for row in candles[-6:-1])
+    bearish_order_block = displacement and close < open_price and any(row[3] > row[0] for row in candles[-6:-1])
 
     return DetectionSnapshot(
         liquidity_sweep=liquidity_sweep,
@@ -44,4 +59,12 @@ def detect_smart_money(snapshot: MarketSnapshot) -> DetectionSnapshot:
         crowded_shorts=crowded_shorts,
         taker_buy_pressure=taker_buy_pressure,
         taker_sell_pressure=taker_sell_pressure,
+        bullish_market_structure=bullish_market_structure,
+        bearish_market_structure=bearish_market_structure,
+        break_of_structure=break_of_structure,
+        change_of_character=change_of_character,
+        bullish_fvg=bullish_fvg,
+        bearish_fvg=bearish_fvg,
+        bullish_order_block=bullish_order_block,
+        bearish_order_block=bearish_order_block,
     )

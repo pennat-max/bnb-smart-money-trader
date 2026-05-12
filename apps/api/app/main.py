@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .backtest import run_backtest
 from .binance_client import BinanceFuturesClient
+from .collector import market_record_from_signal, save_market_data
 from .config import get_settings
 from .journal import recent_signals, save_signal
 from .learning import summarize_learning
@@ -21,6 +22,7 @@ settings = get_settings()
 app = FastAPI(title="BNB Smart Money AI Trader API", version="0.1.0")
 logger = logging.getLogger(__name__)
 paper_loop_task: asyncio.Task | None = None
+market_collector_task: asyncio.Task | None = None
 
 app.add_middleware(
     CORSMiddleware,
@@ -93,17 +95,41 @@ async def paper_learning_loop() -> None:
             logger.exception("Paper learning loop tick failed")
 
 
+async def collect_market_cycle() -> str:
+    settings = get_settings()
+    client = BinanceFuturesClient(settings)
+    snapshot = await client.snapshot("BNBUSDT")
+    signal_response = generate_signal(snapshot, settings)
+    return save_market_data(settings, market_record_from_signal(signal_response))
+
+
+async def market_collector_loop() -> None:
+    while True:
+        settings = get_settings()
+        await asyncio.sleep(max(60, settings.market_collector_interval_seconds))
+        if not settings.market_collector_enabled:
+            continue
+        try:
+            await collect_market_cycle()
+        except Exception:
+            logger.exception("Market collector tick failed")
+
+
 @app.on_event("startup")
 async def start_paper_loop() -> None:
-    global paper_loop_task
+    global paper_loop_task, market_collector_task
     if paper_loop_task is None:
         paper_loop_task = asyncio.create_task(paper_learning_loop())
+    if market_collector_task is None:
+        market_collector_task = asyncio.create_task(market_collector_loop())
 
 
 @app.on_event("shutdown")
 async def stop_paper_loop() -> None:
     if paper_loop_task:
         paper_loop_task.cancel()
+    if market_collector_task:
+        market_collector_task.cancel()
 
 
 @app.get("/health")
@@ -131,6 +157,8 @@ async def runtime_status():
         line_configured=settings.line_configured,
         paper_trading_enabled=settings.paper_trading_enabled,
         paper_trading_interval_seconds=settings.paper_trading_interval_seconds,
+        market_collector_enabled=settings.market_collector_enabled,
+        market_collector_interval_seconds=settings.market_collector_interval_seconds,
         risk_daily_target_pct=settings.risk_daily_target_pct,
         risk_max_daily_loss_pct=settings.risk_max_daily_loss_pct,
         risk_min_confidence=settings.risk_min_confidence,
@@ -204,6 +232,11 @@ async def derivatives(symbol: str = Query(default="BNBUSDT"), period: str = Quer
         bid_ask_imbalance=imbalance,
         smart_money_note=", ".join(note_parts) if note_parts else "no strong derivatives imbalance",
     )
+
+
+@app.post("/api/collect/market")
+async def collect_market():
+    return {"ok": True, "backend": await collect_market_cycle()}
 
 
 @app.post("/api/backtest")

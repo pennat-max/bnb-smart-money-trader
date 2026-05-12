@@ -140,6 +140,8 @@ def run_backtest_profile(
     balance = request.starting_balance
     peak_balance = balance
     max_drawdown_pct = 0.0
+    round_trip_cost_pct = (request.fee_bps * 2) / 100
+    slippage_rate = request.slippage_bps / 10_000
 
     for index in range(120, len(candles) - request.lookahead_candles):
         window = candles[index - 120 : index]
@@ -172,11 +174,12 @@ def run_backtest_profile(
         if signal.suggestion.entry is None or signal.suggestion.take_profit is None or signal.suggestion.stop_loss is None:
             continue
 
-        entry = signal.suggestion.entry
-        tp_distance = abs(signal.suggestion.take_profit - entry) * profile.take_profit_multiplier
-        sl_distance = abs(entry - signal.suggestion.stop_loss) * profile.stop_loss_multiplier
-        take_profit = round(entry + tp_distance, 2) if signal.signal == "LONG" else round(entry - tp_distance, 2)
-        stop_loss = round(entry - sl_distance, 2) if signal.signal == "LONG" else round(entry + sl_distance, 2)
+        raw_entry = signal.suggestion.entry
+        entry = raw_entry * (1 + slippage_rate) if signal.signal == "LONG" else raw_entry * (1 - slippage_rate)
+        tp_distance = abs(signal.suggestion.take_profit - raw_entry) * profile.take_profit_multiplier
+        sl_distance = abs(raw_entry - signal.suggestion.stop_loss) * profile.stop_loss_multiplier
+        take_profit = round(raw_entry + tp_distance, 2) if signal.signal == "LONG" else round(raw_entry - tp_distance, 2)
+        stop_loss = round(raw_entry - sl_distance, 2) if signal.signal == "LONG" else round(raw_entry + sl_distance, 2)
 
         outcome = "TIMEOUT"
         exit_price = candles[index + request.lookahead_candles]["close"]
@@ -207,9 +210,12 @@ def run_backtest_profile(
                     closed_at = future_candle["close_time"]
                     break
 
-        pnl_pct = ((exit_price - entry) / entry) * 100
+        slipped_exit = exit_price * (1 - slippage_rate) if signal.signal == "LONG" else exit_price * (1 + slippage_rate)
+        gross_pnl_pct = ((slipped_exit - entry) / entry) * 100
         if signal.signal == "SHORT":
-            pnl_pct *= -1
+            gross_pnl_pct *= -1
+        pnl_pct = gross_pnl_pct - round_trip_cost_pct
+        gross_pnl_pct = round(gross_pnl_pct, 3)
         pnl_pct = round(pnl_pct, 3)
         balance *= 1 + (pnl_pct / 100)
         peak_balance = max(peak_balance, balance)
@@ -220,12 +226,14 @@ def run_backtest_profile(
                 opened_at=current["open_time"],
                 closed_at=closed_at,
                 side=signal.signal,
-                entry=entry,
+                entry=round(entry, 2),
                 take_profit=take_profit,
                 stop_loss=stop_loss,
                 exit_price=round(exit_price, 2),
                 outcome=outcome,
                 pnl_pct=pnl_pct,
+                gross_pnl_pct=gross_pnl_pct,
+                cost_pct=round(round_trip_cost_pct, 3),
                 confidence=signal.confidence,
                 reason=signal.reasoning_th,
             )
@@ -234,6 +242,8 @@ def run_backtest_profile(
     wins = sum(1 for trade in trades if trade.outcome == "WIN")
     losses = sum(1 for trade in trades if trade.outcome == "LOSS")
     timeouts = sum(1 for trade in trades if trade.outcome == "TIMEOUT")
+    gross_total_pnl_pct = round(sum(trade.gross_pnl_pct for trade in trades), 3)
+    total_cost_pct = round(sum(trade.cost_pct for trade in trades), 3)
     learning = summarize_learning(trades)
     return BacktestResult(
         symbol=request.symbol,
@@ -245,9 +255,12 @@ def run_backtest_profile(
         losses=losses,
         timeouts=timeouts,
         win_rate=round((wins / len(trades)) * 100, 2) if trades else 0,
+        gross_pnl_pct=gross_total_pnl_pct,
+        cost_pct=total_cost_pct,
         total_pnl_pct=round(((balance - request.starting_balance) / request.starting_balance) * 100, 3),
         ending_balance=round(balance, 2),
         max_drawdown_pct=round(max_drawdown_pct, 3),
+        walk_forward=walk_forward_summary(trades, request.walk_forward_splits),
         learning_note=str(learning["note"]),
         profile=profile.name,
         optimizer_note="",
@@ -273,3 +286,28 @@ def derivatives_context_at(history: list[dict], timestamp: int) -> dict:
             "taker_buy_volume_ratio": row.get("taker_buy_volume_ratio", 0.5),
         }
     return context
+
+
+def walk_forward_summary(trades: list[BacktestTrade], splits: int) -> list[dict[str, float | int | str]]:
+    if not trades:
+        return []
+    split_count = max(1, min(splits, len(trades)))
+    chunk_size = max(1, len(trades) // split_count)
+    rows: list[dict[str, float | int | str]] = []
+    for index in range(split_count):
+        start = index * chunk_size
+        end = len(trades) if index == split_count - 1 else min(len(trades), (index + 1) * chunk_size)
+        chunk = trades[start:end]
+        if not chunk:
+            continue
+        wins = sum(1 for trade in chunk if trade.outcome == "WIN")
+        rows.append(
+            {
+                "segment": index + 1,
+                "trades": len(chunk),
+                "win_rate": round((wins / len(chunk)) * 100, 2),
+                "pnl": round(sum(trade.pnl_pct for trade in chunk), 3),
+                "cost": round(sum(trade.cost_pct for trade in chunk), 3),
+            }
+        )
+    return rows

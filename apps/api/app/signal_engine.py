@@ -27,6 +27,12 @@ def _confidence(base: int, detections: DetectionSnapshot, trend_aligned: bool) -
         score += 3
     if detections.taker_buy_pressure or detections.taker_sell_pressure:
         score += 3
+    if detections.break_of_structure or detections.change_of_character:
+        score += 4
+    if detections.bullish_fvg or detections.bearish_fvg:
+        score += 3
+    if detections.bullish_order_block or detections.bearish_order_block:
+        score += 4
     if trend_aligned:
         score += 8
     return max(0, min(score, 95))
@@ -154,6 +160,22 @@ def _pattern_text(detections: DetectionSnapshot) -> str:
         names.append("taker buy pressure")
     if detections.taker_sell_pressure:
         names.append("taker sell pressure")
+    if detections.bullish_market_structure:
+        names.append("bullish market structure")
+    if detections.bearish_market_structure:
+        names.append("bearish market structure")
+    if detections.break_of_structure:
+        names.append("break of structure")
+    if detections.change_of_character:
+        names.append("change of character")
+    if detections.bullish_fvg:
+        names.append("bullish FVG")
+    if detections.bearish_fvg:
+        names.append("bearish FVG")
+    if detections.bullish_order_block:
+        names.append("bullish order block")
+    if detections.bearish_order_block:
+        names.append("bearish order block")
     return "เจอ " + ", ".join(names) + "." if names else "ยังไม่เจอ smart money trap ชัดเจน."
 
 

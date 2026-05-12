@@ -45,6 +45,14 @@ class DetectionSnapshot(BaseModel):
     crowded_shorts: bool = False
     taker_buy_pressure: bool = False
     taker_sell_pressure: bool = False
+    bullish_market_structure: bool = False
+    bearish_market_structure: bool = False
+    break_of_structure: bool = False
+    change_of_character: bool = False
+    bullish_fvg: bool = False
+    bearish_fvg: bool = False
+    bullish_order_block: bool = False
+    bearish_order_block: bool = False
 
 
 class TradeSuggestion(BaseModel):
@@ -103,6 +111,8 @@ class RuntimeStatus(BaseModel):
     line_configured: bool
     paper_trading_enabled: bool
     paper_trading_interval_seconds: int
+    market_collector_enabled: bool
+    market_collector_interval_seconds: int
     risk_daily_target_pct: float
     risk_max_daily_loss_pct: float
     risk_min_confidence: int
@@ -124,6 +134,20 @@ class DerivativesMetrics(BaseModel):
     smart_money_note: str = ""
 
 
+class MarketDataRecord(BaseModel):
+    symbol: str = "BNBUSDT"
+    price: float
+    btc_price: float
+    funding_rate: float
+    open_interest: float
+    open_interest_change_pct: float = 0
+    long_short_ratio: float = 1
+    taker_buy_sell_ratio: float = 1
+    taker_buy_volume_ratio: float = 0.5
+    detections: dict[str, bool] = {}
+    source: str = "collector"
+
+
 class BacktestRequest(BaseModel):
     symbol: str = "BNBUSDT"
     interval: Literal["1m", "5m", "15m", "1h"] = "15m"
@@ -134,6 +158,9 @@ class BacktestRequest(BaseModel):
     optimize_for_win_rate: bool = True
     smart_money_priority: bool = True
     min_trades: int = Field(default=10, ge=1, le=500)
+    fee_bps: float = Field(default=4.0, ge=0, le=50)
+    slippage_bps: float = Field(default=2.0, ge=0, le=100)
+    walk_forward_splits: int = Field(default=4, ge=1, le=12)
 
 
 class BacktestTrade(BaseModel):
@@ -146,6 +173,8 @@ class BacktestTrade(BaseModel):
     exit_price: float
     outcome: Literal["WIN", "LOSS", "TIMEOUT"]
     pnl_pct: float
+    gross_pnl_pct: float = 0
+    cost_pct: float = 0
     confidence: int
     reason: str
 
@@ -160,9 +189,12 @@ class BacktestResult(BaseModel):
     losses: int
     timeouts: int
     win_rate: float
+    gross_pnl_pct: float = 0
+    cost_pct: float = 0
     total_pnl_pct: float
     ending_balance: float
     max_drawdown_pct: float
+    walk_forward: list[dict[str, float | int | str]] = []
     learning_note: str
     profile: str = "base"
     optimizer_note: str = ""

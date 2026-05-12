@@ -93,3 +93,41 @@ create policy "Allow paper trade updates"
   to anon, authenticated
   using (true)
   with check (true);
+
+create table if not exists public.market_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  symbol text not null default 'BNBUSDT',
+  price numeric not null,
+  btc_price numeric not null,
+  funding_rate numeric not null default 0,
+  open_interest numeric not null default 0,
+  open_interest_change_pct numeric not null default 0,
+  long_short_ratio numeric not null default 1,
+  taker_buy_sell_ratio numeric not null default 1,
+  taker_buy_volume_ratio numeric not null default 0.5,
+  detections jsonb not null default '{}'::jsonb,
+  source text not null default 'collector'
+);
+
+create index if not exists market_snapshots_created_at_idx
+  on public.market_snapshots (created_at desc);
+
+create index if not exists market_snapshots_symbol_idx
+  on public.market_snapshots (symbol);
+
+alter table public.market_snapshots enable row level security;
+
+drop policy if exists "Allow market snapshot inserts" on public.market_snapshots;
+create policy "Allow market snapshot inserts"
+  on public.market_snapshots
+  for insert
+  to anon, authenticated
+  with check (true);
+
+drop policy if exists "Allow market snapshot reads" on public.market_snapshots;
+create policy "Allow market snapshot reads"
+  on public.market_snapshots
+  for select
+  to anon, authenticated
+  using (true);

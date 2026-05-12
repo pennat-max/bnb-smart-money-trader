@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     paper_trading_interval_seconds: int = Field(default=60, alias="PAPER_TRADING_INTERVAL_SECONDS")
     paper_starting_balance: float = Field(default=1000, alias="PAPER_STARTING_BALANCE")
     paper_risk_pct: float = Field(default=1.0, alias="PAPER_RISK_PCT")
+    market_collector_enabled: bool = Field(default=True, alias="MARKET_COLLECTOR_ENABLED")
+    market_collector_interval_seconds: int = Field(default=300, alias="MARKET_COLLECTOR_INTERVAL_SECONDS")
     frontend_origins: str = Field(
         default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001",
         alias="FRONTEND_ORIGINS",

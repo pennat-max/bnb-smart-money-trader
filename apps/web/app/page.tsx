@@ -71,6 +71,8 @@ type RuntimeStatus = {
   line_configured: boolean;
   paper_trading_enabled: boolean;
   paper_trading_interval_seconds: number;
+  market_collector_enabled: boolean;
+  market_collector_interval_seconds: number;
   risk_daily_target_pct: number;
   risk_max_daily_loss_pct: number;
   risk_min_confidence: number;
@@ -100,6 +102,8 @@ type BacktestResult = {
   timeouts: number;
   win_rate: number;
   total_pnl_pct: number;
+  gross_pnl_pct: number;
+  cost_pct: number;
   ending_balance: number;
   max_drawdown_pct: number;
   learning_note: string;
@@ -112,6 +116,13 @@ type BacktestResult = {
     pnl: number;
     max_dd: number;
     smart_money: string;
+  }>;
+  walk_forward: Array<{
+    segment: number;
+    trades: number;
+    win_rate: number;
+    pnl: number;
+    cost: number;
   }>;
 };
 
@@ -169,6 +180,9 @@ export default function Dashboard() {
   const [optimizeWinRate, setOptimizeWinRate] = useState(true);
   const [smartMoneyPriority, setSmartMoneyPriority] = useState(true);
   const [minBacktestTrades, setMinBacktestTrades] = useState(10);
+  const [feeBps, setFeeBps] = useState(4);
+  const [slippageBps, setSlippageBps] = useState(2);
+  const [walkForwardSplits, setWalkForwardSplits] = useState(4);
   const [paperEnabled, setPaperEnabled] = useState(false);
   const [paperBalance, setPaperBalance] = useState(1000);
   const [paperRisk, setPaperRisk] = useState(1);
@@ -265,7 +279,10 @@ export default function Dashboard() {
           starting_balance: paperBalance,
           optimize_for_win_rate: optimizeWinRate,
           smart_money_priority: smartMoneyPriority,
-          min_trades: minBacktestTrades
+          min_trades: minBacktestTrades,
+          fee_bps: feeBps,
+          slippage_bps: slippageBps,
+          walk_forward_splits: walkForwardSplits
         }),
         headers: { "content-type": "application/json" },
         method: "POST"
@@ -467,6 +484,9 @@ export default function Dashboard() {
           <p className="saveState">
             Paper loop: {runtimeStatus?.paper_trading_enabled ? `on / ${runtimeStatus.paper_trading_interval_seconds}s` : "manual only"}
           </p>
+          <p className="saveState">
+            Market collector: {runtimeStatus?.market_collector_enabled ? `on / ${runtimeStatus.market_collector_interval_seconds}s` : "off"}
+          </p>
           <p className="saveState">Trading: {runtimeStatus?.real_trading ? "live" : "signal-only"}</p>
         </div>
       </section>
@@ -524,6 +544,40 @@ export default function Dashboard() {
               onChange={(event) => setMinBacktestTrades(Number(event.target.value))}
             />
           </label>
+          <div className="orderGrid">
+            <label className="pnlControl">
+              Fee bps
+              <input
+                min="0"
+                max="50"
+                step="0.5"
+                type="number"
+                value={feeBps}
+                onChange={(event) => setFeeBps(Number(event.target.value))}
+              />
+            </label>
+            <label className="pnlControl">
+              Slippage bps
+              <input
+                min="0"
+                max="100"
+                step="0.5"
+                type="number"
+                value={slippageBps}
+                onChange={(event) => setSlippageBps(Number(event.target.value))}
+              />
+            </label>
+          </div>
+          <label className="pnlControl">
+            Walk-forward splits
+            <input
+              min="1"
+              max="12"
+              type="number"
+              value={walkForwardSplits}
+              onChange={(event) => setWalkForwardSplits(Number(event.target.value))}
+            />
+          </label>
           <button className="wideButton" onClick={runBacktest} disabled={backtestRunning}>
             {backtestRunning ? <Activity size={16} className="spinIcon" /> : <Play size={16} />}
             {backtestRunning ? "Running..." : "Run Backtest"}
@@ -538,6 +592,8 @@ export default function Dashboard() {
               <Field label="Trades" value={`${backtestResult.trades}`} />
               <Field label="Win Rate" value={`${backtestResult.win_rate}%`} />
               <Field label="PnL" value={`${backtestResult.total_pnl_pct}%`} />
+              <Field label="Gross PnL" value={`${backtestResult.gross_pnl_pct}%`} />
+              <Field label="Cost" value={`${backtestResult.cost_pct}%`} />
               <Field label="Max DD" value={`${backtestResult.max_drawdown_pct}%`} />
               <Field label="Candles" value={`${backtestResult.candles_tested}`} />
               <Field label="Range" value={`${backtestResult.period_days}d / ${backtestResult.interval}`} />
@@ -549,6 +605,18 @@ export default function Dashboard() {
           )}
           {backtestResult && <p className="saveState">{backtestResult.learning_note}</p>}
           {backtestResult?.optimizer_note && <p className="saveState">{backtestResult.optimizer_note}</p>}
+          {Boolean(backtestResult?.walk_forward?.length) && (
+            <div className="profileList">
+              {backtestResult?.walk_forward.map((segment) => (
+                <div className="profileItem" key={segment.segment}>
+                  <strong>Segment {segment.segment}</strong>
+                  <span>
+                    {segment.win_rate}% WR / {segment.trades} trades / {segment.pnl}% PnL / {segment.cost}% cost
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           {Boolean(backtestResult?.tested_profiles?.length) && (
             <div className="profileList">
               {backtestResult?.tested_profiles.map((profile) => (
