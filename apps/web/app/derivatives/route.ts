@@ -85,6 +85,12 @@ async function fetchBinanceDerivatives(symbol: string, period: string) {
   const longShortRatio = Number(latestRatio.longShortRatio ?? 1);
   const takerBuySellRatio = Number(latestTaker.buySellRatio ?? 1);
   const bidAskImbalance = totalDepth ? (bidQty - askQty) / totalDepth : 0;
+  const hasProductionData = Boolean(oiRows.length || ratioRows.length || takerRows.length || totalDepth);
+
+  if (!hasProductionData) {
+    return fetchBinanceTestnetDerivatives(symbol, period);
+  }
+
   const noteParts = [];
 
   if (longShortRatio > 1.6) noteParts.push("crowded longs");
@@ -99,7 +105,7 @@ async function fetchBinanceDerivatives(symbol: string, period: string) {
     symbol,
     period,
     source: "vercel_binance_public_futures",
-    data_ok: Boolean(oiRows.length || ratioRows.length || takerRows.length || totalDepth),
+    data_ok: hasProductionData,
     open_interest_change_pct: openInterestChangePct,
     long_short_ratio: longShortRatio,
     long_account: Number(latestRatio.longAccount ?? 0.5),
@@ -108,5 +114,47 @@ async function fetchBinanceDerivatives(symbol: string, period: string) {
     taker_buy_volume_ratio: takerTotal ? buyVol / takerTotal : 0.5,
     bid_ask_imbalance: bidAskImbalance,
     smart_money_note: noteParts.length ? noteParts.join(", ") : "no strong derivatives imbalance"
+  };
+}
+
+async function fetchBinanceTestnetDerivatives(symbol: string, period: string) {
+  const baseUrl = "https://testnet.binancefuture.com";
+  const [openInterestResponse, premiumResponse, depthResponse] = await Promise.all([
+    fetch(`${baseUrl}/fapi/v1/openInterest?symbol=${symbol}`, { cache: "no-store" }),
+    fetch(`${baseUrl}/fapi/v1/premiumIndex?symbol=${symbol}`, { cache: "no-store" }),
+    fetch(`${baseUrl}/fapi/v1/depth?symbol=${symbol}&limit=50`, { cache: "no-store" })
+  ]);
+
+  const openInterest = openInterestResponse.ok ? await openInterestResponse.json() : {};
+  const premium = premiumResponse.ok ? await premiumResponse.json() : {};
+  const depth = depthResponse.ok ? await depthResponse.json() : { bids: [], asks: [] };
+  const bidQty = (depth.bids ?? []).reduce((sum: number, row: string[]) => sum + Number(row[1] ?? 0), 0);
+  const askQty = (depth.asks ?? []).reduce((sum: number, row: string[]) => sum + Number(row[1] ?? 0), 0);
+  const totalDepth = bidQty + askQty;
+  const bidAskImbalance = totalDepth ? (bidQty - askQty) / totalDepth : 0;
+  const fundingRate = Number(premium.lastFundingRate ?? 0);
+  const noteParts = [];
+
+  if (bidAskImbalance > 0.12) noteParts.push("testnet bid wall imbalance");
+  if (bidAskImbalance < -0.12) noteParts.push("testnet ask wall imbalance");
+  if (fundingRate > 0.0001) noteParts.push("positive funding");
+  if (fundingRate < -0.0001) noteParts.push("negative funding");
+  if (Number(openInterest.openInterest ?? 0) > 0) noteParts.push("testnet OI online");
+
+  return {
+    symbol,
+    period,
+    source: "vercel_binance_futures_testnet_public",
+    data_ok: Boolean(totalDepth || openInterest.openInterest || premium.markPrice),
+    open_interest_change_pct: 0,
+    long_short_ratio: 1,
+    long_account: 0.5,
+    short_account: 0.5,
+    taker_buy_sell_ratio: 1,
+    taker_buy_volume_ratio: 0.5,
+    bid_ask_imbalance: bidAskImbalance,
+    smart_money_note: noteParts.length
+      ? `${noteParts.join(", ")}; production sentiment endpoints unavailable from this cloud`
+      : "production sentiment endpoints unavailable from this cloud"
   };
 }
