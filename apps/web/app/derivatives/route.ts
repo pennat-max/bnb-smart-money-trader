@@ -27,14 +27,86 @@ export async function GET(request: NextRequest) {
 
   try {
     const response = await fetch(upstream, { cache: "no-store" });
-    return new NextResponse(await response.text(), {
-      status: response.status,
-      headers: { "content-type": response.headers.get("content-type") ?? "application/json" }
-    });
+    const payload = await response.text();
+    if (response.ok) {
+      const parsed = JSON.parse(payload);
+      if (parsed.data_ok) {
+        return NextResponse.json(parsed);
+      }
+    }
+
+    const symbol = request.nextUrl.searchParams.get("symbol") ?? "BNBUSDT";
+    const period = normalizePeriod(request.nextUrl.searchParams.get("period") ?? "15m");
+    return NextResponse.json(await fetchBinanceDerivatives(symbol, period));
   } catch (error) {
-    return NextResponse.json(
-      { error: "backend_unreachable", message: error instanceof Error ? error.message : "Unknown backend fetch error" },
-      { status: 502 }
-    );
+    try {
+      const symbol = request.nextUrl.searchParams.get("symbol") ?? "BNBUSDT";
+      const period = normalizePeriod(request.nextUrl.searchParams.get("period") ?? "15m");
+      return NextResponse.json(await fetchBinanceDerivatives(symbol, period));
+    } catch {
+      return NextResponse.json(
+        { error: "backend_unreachable", message: error instanceof Error ? error.message : "Unknown backend fetch error" },
+        { status: 502 }
+      );
+    }
   }
+}
+
+function normalizePeriod(period: string) {
+  if (period === "1m") return "5m";
+  return ["5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"].includes(period) ? period : "15m";
+}
+
+async function fetchBinanceDerivatives(symbol: string, period: string) {
+  const baseUrl = "https://fapi.binance.com";
+  const [oiResponse, ratioResponse, takerResponse, depthResponse] = await Promise.all([
+    fetch(`${baseUrl}/futures/data/openInterestHist?symbol=${symbol}&period=${period}&limit=3`, { cache: "no-store" }),
+    fetch(`${baseUrl}/futures/data/globalLongShortAccountRatio?symbol=${symbol}&period=${period}&limit=3`, { cache: "no-store" }),
+    fetch(`${baseUrl}/futures/data/takerlongshortRatio?symbol=${symbol}&period=${period}&limit=3`, { cache: "no-store" }),
+    fetch(`${baseUrl}/fapi/v1/depth?symbol=${symbol}&limit=50`, { cache: "no-store" })
+  ]);
+
+  const oiRows = oiResponse.ok ? await oiResponse.json() : [];
+  const ratioRows = ratioResponse.ok ? await ratioResponse.json() : [];
+  const takerRows = takerResponse.ok ? await takerResponse.json() : [];
+  const depth = depthResponse.ok ? await depthResponse.json() : { bids: [], asks: [] };
+
+  const previousOi = Number(oiRows.at(-2)?.sumOpenInterest ?? 0);
+  const latestOi = Number(oiRows.at(-1)?.sumOpenInterest ?? previousOi);
+  const latestRatio = ratioRows.at(-1) ?? {};
+  const latestTaker = takerRows.at(-1) ?? {};
+  const buyVol = Number(latestTaker.buyVol ?? 0);
+  const sellVol = Number(latestTaker.sellVol ?? 0);
+  const bidQty = (depth.bids ?? []).reduce((sum: number, row: string[]) => sum + Number(row[1] ?? 0), 0);
+  const askQty = (depth.asks ?? []).reduce((sum: number, row: string[]) => sum + Number(row[1] ?? 0), 0);
+  const totalDepth = bidQty + askQty;
+  const takerTotal = buyVol + sellVol;
+  const openInterestChangePct = previousOi ? ((latestOi - previousOi) / previousOi) * 100 : 0;
+  const longShortRatio = Number(latestRatio.longShortRatio ?? 1);
+  const takerBuySellRatio = Number(latestTaker.buySellRatio ?? 1);
+  const bidAskImbalance = totalDepth ? (bidQty - askQty) / totalDepth : 0;
+  const noteParts = [];
+
+  if (longShortRatio > 1.6) noteParts.push("crowded longs");
+  if (longShortRatio < 0.7) noteParts.push("crowded shorts");
+  if (openInterestChangePct > 0.35) noteParts.push("OI expanding");
+  if (takerBuySellRatio > 1.25) noteParts.push("taker buy pressure");
+  if (takerBuySellRatio < 0.8) noteParts.push("taker sell pressure");
+  if (bidAskImbalance > 0.12) noteParts.push("bid wall imbalance");
+  if (bidAskImbalance < -0.12) noteParts.push("ask wall imbalance");
+
+  return {
+    symbol,
+    period,
+    source: "vercel_binance_public_futures",
+    data_ok: Boolean(oiRows.length || ratioRows.length || takerRows.length || totalDepth),
+    open_interest_change_pct: openInterestChangePct,
+    long_short_ratio: longShortRatio,
+    long_account: Number(latestRatio.longAccount ?? 0.5),
+    short_account: Number(latestRatio.shortAccount ?? 0.5),
+    taker_buy_sell_ratio: takerBuySellRatio,
+    taker_buy_volume_ratio: takerTotal ? buyVol / takerTotal : 0.5,
+    bid_ask_imbalance: bidAskImbalance,
+    smart_money_note: noteParts.length ? noteParts.join(", ") : "no strong derivatives imbalance"
+  };
 }

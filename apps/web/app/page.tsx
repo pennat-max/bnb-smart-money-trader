@@ -77,6 +77,19 @@ type RuntimeStatus = {
   risk_max_active_bnb_positions: number;
 };
 
+type DerivativesMetrics = {
+  data_ok: boolean;
+  source: string;
+  open_interest_change_pct: number;
+  long_short_ratio: number;
+  long_account: number;
+  short_account: number;
+  taker_buy_sell_ratio: number;
+  taker_buy_volume_ratio: number;
+  bid_ask_imbalance: number;
+  smart_money_note: string;
+};
+
 type BacktestResult = {
   interval: string;
   period_days: number;
@@ -147,6 +160,7 @@ export default function Dashboard() {
   const [dailyPnl, setDailyPnl] = useState(0);
   const [activePositions, setActivePositions] = useState(0);
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null);
+  const [derivatives, setDerivatives] = useState<DerivativesMetrics | null>(null);
   const [orderPreview, setOrderPreview] = useState<string>("No testnet preview yet.");
   const [alertPreview, setAlertPreview] = useState<string>("LINE alert is optional and off until env vars are configured.");
   const [backtestLimit, setBacktestLimit] = useState(500);
@@ -188,6 +202,11 @@ export default function Dashboard() {
       const learningResponse = await fetch(`${apiUrl}/learning`);
       if (learningResponse.ok) {
         setLearningSummary((await learningResponse.json()) as LearningSummary);
+      }
+
+      const derivativesResponse = await fetch(`${apiUrl}/derivatives?symbol=BNBUSDT&period=15m`);
+      if (derivativesResponse.ok) {
+        setDerivatives((await derivativesResponse.json()) as DerivativesMetrics);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -376,11 +395,14 @@ export default function Dashboard() {
             <Field label="RSI" value={num(signal?.indicators.rsi)} />
             <Field label="MACD" value={num(signal?.indicators.macd)} />
             <Field label="BB Mid" value={num(signal?.indicators.bb_middle)} />
-            <Field label="OI Change" value={signal ? `${signal.open_interest_change_pct.toFixed(3)}%` : "--"} />
-            <Field label="Long/Short" value={num(signal?.long_short_ratio)} />
-            <Field label="Taker Buy" value={signal ? `${(signal.taker_buy_volume_ratio * 100).toFixed(1)}%` : "--"} />
-            <Field label="Taker Ratio" value={num(signal?.taker_buy_sell_ratio)} />
+            <Field label="OI Change" value={derivatives ? `${derivatives.open_interest_change_pct.toFixed(3)}%` : signal ? `${signal.open_interest_change_pct.toFixed(3)}%` : "--"} />
+            <Field label="Long/Short" value={derivatives ? derivatives.long_short_ratio.toFixed(3) : num(signal?.long_short_ratio)} />
+            <Field label="Taker Buy" value={derivatives ? `${(derivatives.taker_buy_volume_ratio * 100).toFixed(1)}%` : signal ? `${(signal.taker_buy_volume_ratio * 100).toFixed(1)}%` : "--"} />
+            <Field label="Taker Ratio" value={derivatives ? derivatives.taker_buy_sell_ratio.toFixed(3) : num(signal?.taker_buy_sell_ratio)} />
+            <Field label="Book Imbalance" value={derivatives ? derivatives.bid_ask_imbalance.toFixed(3) : "--"} />
+            <Field label="Derivatives API" value={derivatives?.data_ok ? "online" : "--"} />
           </div>
+          <p className="saveState">{derivatives?.smart_money_note ?? "Binance derivatives data loading..."}</p>
         </div>
 
         <div className="panel">
