@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, AlertTriangle, BarChart3, Bell, Brain, Clock3, FlaskConical, History, Play, ShieldCheck, TrendingDown, TrendingUp } from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, Bell, Brain, Clock3, Database, FlaskConical, History, Play, ShieldCheck, TrendingDown, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 type SignalType = "LONG" | "SHORT" | "WAIT" | "CANCEL";
@@ -213,6 +213,37 @@ type AICommitteeReport = {
   }>;
 };
 
+type MarketDataHealth = {
+  ok: boolean;
+  status: "pass" | "warn" | "fail";
+  symbols: string[];
+  timeframes: string[];
+  candles: Array<{
+    symbol: string;
+    timeframe: string;
+    status: "pass" | "warn" | "fail";
+    count: number;
+    latest_open_time: number | null;
+    latest_close_time: number | null;
+    latest_age_seconds: number | null;
+    gap_count_recent: number;
+    recent_sample_size: number;
+    error: string | null;
+  }>;
+  collector_runs: Array<{
+    created_at: string;
+    collector: string;
+    status: "success" | "partial" | "failed";
+    symbol: string | null;
+    timeframe: string | null;
+    rows_fetched: number;
+    rows_saved: number;
+    duration_ms: number | null;
+    error: string | null;
+  }>;
+  notes: string[];
+};
+
 const apiUrl = "";
 
 export default function Dashboard() {
@@ -248,6 +279,7 @@ export default function Dashboard() {
   const [aiReport, setAiReport] = useState<AICommitteeReport | null>(null);
   const [aiReportStatus, setAiReportStatus] = useState("AI committee is ready.");
   const [aiReportRunning, setAiReportRunning] = useState(false);
+  const [marketDataHealth, setMarketDataHealth] = useState<MarketDataHealth | null>(null);
 
   async function refresh() {
     try {
@@ -276,6 +308,11 @@ export default function Dashboard() {
       const derivativesResponse = await fetch(`${apiUrl}/derivatives?symbol=BNBUSDT&period=15m`);
       if (derivativesResponse.ok) {
         setDerivatives((await derivativesResponse.json()) as DerivativesMetrics);
+      }
+
+      const marketDataHealthResponse = await fetch(`${apiUrl}/market-data-health`);
+      if (marketDataHealthResponse.ok) {
+        setMarketDataHealth((await marketDataHealthResponse.json()) as MarketDataHealth);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -475,6 +512,43 @@ export default function Dashboard() {
           <div className="safetyLine">{orderPreview}</div>
           <div className="safetyLine">{alertPreview}</div>
         </div>
+      </section>
+
+      <section className="panel marketDataPanel">
+        <div className="panelHeader">
+          <span>Market Data Health</span>
+          <div className={`healthPill ${marketDataHealth?.status ?? "warn"}`}>
+            <Database size={16} />
+            {marketDataHealth?.status.toUpperCase() ?? "LOADING"}
+          </div>
+        </div>
+        <div className="healthGrid">
+          {(marketDataHealth?.candles ?? []).map((item) => (
+            <div className={`healthTile ${item.status}`} key={`${item.symbol}-${item.timeframe}`}>
+              <div className="healthTileTop">
+                <strong>{item.symbol}</strong>
+                <span>{item.timeframe}</span>
+              </div>
+              <div className="healthStats">
+                <span>{item.count.toLocaleString()} candles</span>
+                <span>{formatAge(item.latest_age_seconds)}</span>
+                <span>{item.gap_count_recent} gaps</span>
+              </div>
+            </div>
+          ))}
+          {!marketDataHealth && <p className="empty">Loading candle storage health...</p>}
+        </div>
+        <div className="collectorStrip">
+          <strong>Last collector runs</strong>
+          {(marketDataHealth?.collector_runs ?? []).slice(0, 4).map((run) => (
+            <span className={`collectorRun ${run.status}`} key={`${run.created_at}-${run.symbol}-${run.timeframe}`}>
+              {run.symbol ?? "--"} {run.timeframe ?? "--"} / {run.rows_saved} saved
+            </span>
+          ))}
+        </div>
+        <p className="saveState">
+          Research data foundation: stored candles only. No signals, paper trades, or real orders are changed here.
+        </p>
       </section>
 
       <section className="detailsGrid">
@@ -879,4 +953,11 @@ function journalLabel(signal: SignalResponse | null) {
   if (signal.journal_backend === "supabase") return "saved to Supabase";
   if (signal.journal_backend === "local") return "saved to sandbox journal";
   return "saved to journal";
+}
+
+function formatAge(seconds: number | null) {
+  if (seconds === null) return "--";
+  if (seconds < 60) return `${seconds}s old`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m old`;
+  return `${Math.round(seconds / 3600)}h old`;
 }

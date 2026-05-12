@@ -271,6 +271,107 @@ h1 {
   margin-top: 14px;
 }
 
+.marketDataPanel {
+  margin-top: 14px;
+}
+
+.healthPill {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: inline-flex;
+  gap: 6px;
+  padding: 6px 9px;
+}
+
+.healthPill.pass {
+  border-color: rgba(35, 196, 131, 0.55);
+  color: var(--green);
+}
+
+.healthPill.warn {
+  border-color: rgba(242, 184, 75, 0.6);
+  color: var(--amber);
+}
+
+.healthPill.fail {
+  border-color: rgba(255, 100, 100, 0.65);
+  color: var(--red);
+}
+
+.healthGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.healthTile {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 112px;
+  padding: 12px;
+}
+
+.healthTile.pass {
+  border-color: rgba(35, 196, 131, 0.35);
+}
+
+.healthTile.warn {
+  border-color: rgba(242, 184, 75, 0.55);
+}
+
+.healthTile.fail {
+  border-color: rgba(255, 100, 100, 0.65);
+}
+
+.healthTileTop {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.healthTileTop span,
+.healthStats span,
+.collectorStrip,
+.collectorRun {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.healthStats {
+  display: grid;
+  gap: 6px;
+}
+
+.collectorStrip {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.collectorRun {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 9px;
+}
+
+.collectorRun.success {
+  border-color: rgba(35, 196, 131, 0.35);
+}
+
+.collectorRun.partial {
+  border-color: rgba(242, 184, 75, 0.55);
+}
+
+.collectorRun.failed {
+  border-color: rgba(255, 100, 100, 0.65);
+}
+
 .labGrid {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(360px, 1.2fr);
   margin-top: 14px;
@@ -437,6 +538,7 @@ h1 {
 @media (max-width: 1100px) {
   .metricsGrid,
   .detailsGrid,
+  .healthGrid,
   .labGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -459,11 +561,12 @@ h1 {
   .detailsGrid,
   .labGrid,
   .confidenceRow,
-  .actionRow,
-  .resultGrid,
-  .orderGrid,
-  .denseGrid,
-  .setupTags {
+    .actionRow,
+    .resultGrid,
+    .orderGrid,
+    .healthGrid,
+    .denseGrid,
+    .setupTags {
     grid-template-columns: 1fr;
   }
 
