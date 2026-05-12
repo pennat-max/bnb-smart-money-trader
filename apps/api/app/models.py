@@ -63,6 +63,10 @@ class SignalResponse(BaseModel):
     btc_price: float
     funding_rate: float
     open_interest: float
+    open_interest_change_pct: float = 0
+    long_short_ratio: float = 1
+    taker_buy_sell_ratio: float = 1
+    taker_buy_volume_ratio: float = 0.5
     indicators: IndicatorSnapshot
     detections: DetectionSnapshot
     reasoning_th: str

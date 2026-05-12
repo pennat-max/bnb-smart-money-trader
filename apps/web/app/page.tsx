@@ -14,6 +14,10 @@ type SignalResponse = {
   btc_price: number;
   funding_rate: number;
   open_interest: number;
+  open_interest_change_pct: number;
+  long_short_ratio: number;
+  taker_buy_sell_ratio: number;
+  taker_buy_volume_ratio: number;
   reasoning_th: string;
   reasoning_en: string;
   confidence: number;
@@ -372,6 +376,10 @@ export default function Dashboard() {
             <Field label="RSI" value={num(signal?.indicators.rsi)} />
             <Field label="MACD" value={num(signal?.indicators.macd)} />
             <Field label="BB Mid" value={num(signal?.indicators.bb_middle)} />
+            <Field label="OI Change" value={signal ? `${signal.open_interest_change_pct.toFixed(3)}%` : "--"} />
+            <Field label="Long/Short" value={num(signal?.long_short_ratio)} />
+            <Field label="Taker Buy" value={signal ? `${(signal.taker_buy_volume_ratio * 100).toFixed(1)}%` : "--"} />
+            <Field label="Taker Ratio" value={num(signal?.taker_buy_sell_ratio)} />
           </div>
         </div>
 
