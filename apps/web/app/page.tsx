@@ -56,7 +56,7 @@ type HistoryItem = {
   personality_log: string;
 };
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const apiUrl = "";
 
 export default function Dashboard() {
   const [signal, setSignal] = useState<SignalResponse | null>(null);
@@ -113,7 +113,7 @@ export default function Dashboard() {
       {error && (
         <section className="alert">
           <AlertTriangle size={18} />
-          <span>{error}. Start the FastAPI backend at {apiUrl}.</span>
+          <span>{error}. Backend proxy is not responding yet.</span>
         </section>
       )}
 
