@@ -300,7 +300,14 @@ async def collect_market():
 async def candles_backfill(request: CandleBackfillRequest):
     settings = get_settings()
     client = BinanceFuturesClient(settings)
-    fetched, saved = await backfill_candles(settings, client, request.symbol, request.timeframe, request.days)
+    try:
+        fetched, saved = await backfill_candles(settings, client, request.symbol, request.timeframe, request.days)
+        error = None
+    except Exception as exc:
+        logger.exception("Candle backfill failed")
+        fetched = 0
+        saved = 0
+        error = str(exc)
     return CandleBackfillResponse(
         ok=saved > 0,
         symbol=request.symbol.upper(),
@@ -309,6 +316,7 @@ async def candles_backfill(request: CandleBackfillRequest):
         fetched=fetched,
         saved=saved,
         backend="supabase" if saved > 0 else "none",
+        error=error,
     )
 
 

@@ -70,7 +70,11 @@ async def backfill_candles(
     days: int,
 ) -> tuple[int, int]:
     validate_timeframe(timeframe)
-    candles = await client.raw_market_klines_for_days(symbol.upper(), interval=timeframe, days=days)
+    try:
+        candles = await client.raw_market_klines_for_days(symbol.upper(), interval=timeframe, days=days)
+    except Exception:
+        logger.exception("Public market candle backfill failed; falling back to configured futures base URL")
+        candles = await client.raw_klines_for_days(symbol.upper(), interval=timeframe, days=days)
     records = [candle_record(symbol, timeframe, row) for row in candles]
     saved = save_candles_supabase(settings, records)
     return len(records), saved
@@ -84,7 +88,11 @@ async def collect_recent_candles(
     limit: int = 3,
 ) -> int:
     validate_timeframe(timeframe)
-    rows = await client.raw_market_klines_range(symbol.upper(), interval=timeframe, limit=limit)
+    try:
+        rows = await client.raw_market_klines_range(symbol.upper(), interval=timeframe, limit=limit)
+    except Exception:
+        logger.exception("Public market candle collection failed; falling back to configured futures base URL")
+        rows = await client.raw_klines_range(symbol.upper(), interval=timeframe, limit=limit)
     records = [candle_record(symbol, timeframe, row) for row in rows]
     return save_candles_supabase(settings, records)
 

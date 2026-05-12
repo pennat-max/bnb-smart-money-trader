@@ -231,6 +231,7 @@ class CandleBackfillResponse(BaseModel):
     fetched: int
     saved: int
     backend: Literal["supabase", "none"]
+    error: str | None = None
 
 
 class BacktestRequest(BaseModel):
