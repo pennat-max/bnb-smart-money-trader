@@ -207,3 +207,57 @@ drop policy if exists "Allow candle updates" on public.candles;
 
 -- Candle writes should go through the backend with SUPABASE_SERVICE_ROLE_KEY.
 -- No anon insert/update policy is added so clients cannot poison backtest data.
+
+create table if not exists public.collector_runs (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  started_at timestamptz,
+  finished_at timestamptz,
+  collector text not null,
+  status text not null check (status in ('success', 'partial', 'failed')),
+  symbol text,
+  timeframe text,
+  rows_fetched integer not null default 0,
+  rows_saved integer not null default 0,
+  duration_ms integer,
+  error text,
+  metadata jsonb not null default '{}'::jsonb
+);
+
+create index if not exists collector_runs_created_at_idx
+  on public.collector_runs (created_at desc);
+
+create index if not exists collector_runs_collector_idx
+  on public.collector_runs (collector, created_at desc);
+
+create index if not exists collector_runs_symbol_timeframe_idx
+  on public.collector_runs (symbol, timeframe, created_at desc);
+
+alter table public.collector_runs enable row level security;
+
+-- Collector run writes should go through the backend with SUPABASE_SERVICE_ROLE_KEY.
+
+create table if not exists public.data_quality_checks (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  check_name text not null,
+  status text not null check (status in ('pass', 'warn', 'fail')),
+  symbol text,
+  timeframe text,
+  observed_value numeric,
+  expected_value numeric,
+  details jsonb not null default '{}'::jsonb
+);
+
+create index if not exists data_quality_checks_created_at_idx
+  on public.data_quality_checks (created_at desc);
+
+create index if not exists data_quality_checks_name_idx
+  on public.data_quality_checks (check_name, created_at desc);
+
+create index if not exists data_quality_checks_symbol_timeframe_idx
+  on public.data_quality_checks (symbol, timeframe, created_at desc);
+
+alter table public.data_quality_checks enable row level security;
+
+-- Data quality check writes should go through the backend with SUPABASE_SERVICE_ROLE_KEY.

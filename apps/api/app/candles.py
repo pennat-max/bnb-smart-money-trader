@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import Literal, cast
 
 import httpx
@@ -9,6 +10,7 @@ import httpx
 from .binance_client import BinanceFuturesClient
 from .collector import supabase_rest_headers
 from .config import Settings
+from .market_data_repository import log_collector_run
 from .models import CandleRecord
 
 logger = logging.getLogger(__name__)
@@ -100,13 +102,32 @@ async def backfill_candles(
     days: int,
 ) -> tuple[int, int]:
     validate_timeframe(timeframe)
+    started_at = datetime.now(timezone.utc)
+    error = None
     try:
         candles = await client.raw_market_klines_for_days(symbol.upper(), interval=timeframe, days=days)
     except Exception:
         logger.exception("Public market candle backfill failed; falling back to configured futures base URL")
-        candles = await client.raw_klines_for_days(symbol.upper(), interval=timeframe, days=days)
+        try:
+            candles = await client.raw_klines_for_days(symbol.upper(), interval=timeframe, days=days)
+        except Exception as exc:
+            error = str(exc)
+            candles = []
     records = [candle_record(symbol, timeframe, row) for row in candles]
     saved = save_candles_supabase(settings, records)
+    log_collector_run(
+        settings,
+        collector="candle_backfill",
+        status="success" if saved == len(records) and saved > 0 else "partial" if saved > 0 else "failed",
+        symbol=symbol,
+        timeframe=timeframe,
+        rows_fetched=len(records),
+        rows_saved=saved,
+        started_at=started_at,
+        finished_at=datetime.now(timezone.utc),
+        error=error,
+        metadata={"days": days},
+    )
     return len(records), saved
 
 
@@ -118,13 +139,33 @@ async def collect_recent_candles(
     limit: int = 3,
 ) -> int:
     validate_timeframe(timeframe)
+    started_at = datetime.now(timezone.utc)
+    error = None
     try:
         rows = await client.raw_market_klines_range(symbol.upper(), interval=timeframe, limit=limit)
     except Exception:
         logger.exception("Public market candle collection failed; falling back to configured futures base URL")
-        rows = await client.raw_klines_range(symbol.upper(), interval=timeframe, limit=limit)
+        try:
+            rows = await client.raw_klines_range(symbol.upper(), interval=timeframe, limit=limit)
+        except Exception as exc:
+            error = str(exc)
+            rows = []
     records = [candle_record(symbol, timeframe, row) for row in rows]
-    return save_candles_supabase(settings, records)
+    saved = save_candles_supabase(settings, records)
+    log_collector_run(
+        settings,
+        collector="candle_recent",
+        status="success" if saved == len(records) and saved > 0 else "partial" if saved > 0 else "failed",
+        symbol=symbol,
+        timeframe=timeframe,
+        rows_fetched=len(records),
+        rows_saved=saved,
+        started_at=started_at,
+        finished_at=datetime.now(timezone.utc),
+        error=error,
+        metadata={"limit": limit},
+    )
+    return saved
 
 
 async def collect_all_recent_candles(settings: Settings, client: BinanceFuturesClient) -> dict[str, int]:

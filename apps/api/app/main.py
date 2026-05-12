@@ -16,6 +16,7 @@ from .config import get_settings
 from .journal import recent_signals, save_signal
 from .learning import summarize_learning
 from .line_alert import send_line_alert
+from .market_data_repository import market_data_health
 from .models import (
     AIReportRequest,
     BacktestRequest,
@@ -353,6 +354,12 @@ async def candles_status(
         backend="supabase" if error is None else "none",
         error=error,
     )
+
+
+@app.get("/api/market-data/health")
+async def market_data_health_check():
+    settings = get_settings()
+    return market_data_health(settings)
 
 
 @app.post("/api/backtest")
