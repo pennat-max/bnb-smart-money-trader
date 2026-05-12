@@ -17,6 +17,10 @@ class Settings(BaseSettings):
         default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001",
         alias="FRONTEND_ORIGINS",
     )
+    frontend_origin_regex: str = Field(
+        default=r"https://.*\.vercel\.app",
+        alias="FRONTEND_ORIGIN_REGEX",
+    )
     risk_daily_target_pct: float = Field(default=1.0, alias="RISK_DAILY_TARGET_PCT")
     risk_max_daily_loss_pct: float = Field(default=2.0, alias="RISK_MAX_DAILY_LOSS_PCT")
     risk_min_confidence: int = Field(default=70, alias="RISK_MIN_CONFIDENCE")
