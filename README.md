@@ -46,6 +46,11 @@ BINANCE_API_KEY=
 BINANCE_API_SECRET=
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
+CANDLE_COLLECTOR_ENABLED=true
+CANDLE_COLLECTOR_INTERVAL_SECONDS=60
+CANDLE_COLLECTOR_SYMBOLS=BNBUSDT,BTCUSDT
+CANDLE_COLLECTOR_TIMEFRAMES=1m,5m,15m,1h
+CANDLE_COLLECTOR_BACKFILL_DAYS=7
 ```
 
 Frontend variables:
@@ -87,6 +92,8 @@ Or run both services after dependencies are installed:
 Supabase is optional during sandbox testing. If `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are empty, the backend writes journal entries to `apps/api/data/signals.jsonl`.
 
 When you are ready for Supabase, run `supabase/schema.sql` in the Supabase SQL editor and fill `SUPABASE_URL` plus `SUPABASE_SERVICE_ROLE_KEY` in `apps/api/.env`.
+
+The candle collector stores Binance OHLCV candles in Supabase table `candles` for `1m`, `5m`, `15m`, and `1h`. It runs continuously in the FastAPI process and can be backfilled manually with `POST /api/candles/backfill`.
 
 ## Notes
 

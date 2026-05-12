@@ -10,12 +10,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from .ai_committee import configured_ai_providers, generate_ai_committee_report
 from .backtest import run_backtest
 from .binance_client import BinanceFuturesClient
+from .candles import backfill_candles, collect_all_recent_candles, initial_candle_backfill
 from .collector import market_record_from_signal, save_market_data
 from .config import get_settings
 from .journal import recent_signals, save_signal
 from .learning import summarize_learning
 from .line_alert import send_line_alert
-from .models import AIReportRequest, BacktestRequest, DerivativesMetrics, PaperRunRequest, PaperRunResponse, RuntimeStatus, TestnetOrderPreviewRequest
+from .models import (
+    AIReportRequest,
+    BacktestRequest,
+    CandleBackfillRequest,
+    CandleBackfillResponse,
+    DerivativesMetrics,
+    PaperRunRequest,
+    PaperRunResponse,
+    RuntimeStatus,
+    TestnetOrderPreviewRequest,
+)
 from .paper import active_paper_trade, load_paper_trades, maybe_close_trade, open_paper_trade, paper_entry_block_reason
 from .signal_engine import generate_signal
 
@@ -24,6 +35,7 @@ app = FastAPI(title="BNB Smart Money AI Trader API", version="0.1.0")
 logger = logging.getLogger(__name__)
 paper_loop_task: asyncio.Task | None = None
 market_collector_task: asyncio.Task | None = None
+candle_collector_task: asyncio.Task | None = None
 
 app.add_middleware(
     CORSMiddleware,
@@ -116,13 +128,35 @@ async def market_collector_loop() -> None:
             logger.exception("Market collector tick failed")
 
 
+async def candle_collector_loop() -> None:
+    did_initial_backfill = False
+    while True:
+        settings = get_settings()
+        if not settings.candle_collector_enabled:
+            await asyncio.sleep(max(60, settings.candle_collector_interval_seconds))
+            continue
+
+        try:
+            client = BinanceFuturesClient(settings)
+            if not did_initial_backfill:
+                await initial_candle_backfill(settings, client)
+                did_initial_backfill = True
+            await collect_all_recent_candles(settings, client)
+        except Exception:
+            logger.exception("Candle collector tick failed")
+
+        await asyncio.sleep(max(15, settings.candle_collector_interval_seconds))
+
+
 @app.on_event("startup")
 async def start_paper_loop() -> None:
-    global paper_loop_task, market_collector_task
+    global paper_loop_task, market_collector_task, candle_collector_task
     if paper_loop_task is None:
         paper_loop_task = asyncio.create_task(paper_learning_loop())
     if market_collector_task is None:
         market_collector_task = asyncio.create_task(market_collector_loop())
+    if candle_collector_task is None:
+        candle_collector_task = asyncio.create_task(candle_collector_loop())
 
 
 @app.on_event("shutdown")
@@ -131,6 +165,8 @@ async def stop_paper_loop() -> None:
         paper_loop_task.cancel()
     if market_collector_task:
         market_collector_task.cancel()
+    if candle_collector_task:
+        candle_collector_task.cancel()
 
 
 @app.get("/health")
@@ -160,6 +196,10 @@ async def runtime_status():
         paper_trading_interval_seconds=settings.paper_trading_interval_seconds,
         market_collector_enabled=settings.market_collector_enabled,
         market_collector_interval_seconds=settings.market_collector_interval_seconds,
+        candle_collector_enabled=settings.candle_collector_enabled,
+        candle_collector_interval_seconds=settings.candle_collector_interval_seconds,
+        candle_collector_symbols=settings.candle_symbols,
+        candle_collector_timeframes=settings.candle_timeframes,
         ai_committee_enabled=settings.ai_committee_enabled,
         ai_providers_configured=configured_ai_providers(settings),
         risk_daily_target_pct=settings.risk_daily_target_pct,
@@ -254,6 +294,30 @@ async def derivatives(symbol: str = Query(default="BNBUSDT"), period: str = Quer
 @app.post("/api/collect/market")
 async def collect_market():
     return {"ok": True, "backend": await collect_market_cycle()}
+
+
+@app.post("/api/candles/backfill", response_model=CandleBackfillResponse)
+async def candles_backfill(request: CandleBackfillRequest):
+    settings = get_settings()
+    client = BinanceFuturesClient(settings)
+    fetched, saved = await backfill_candles(settings, client, request.symbol, request.timeframe, request.days)
+    return CandleBackfillResponse(
+        ok=saved > 0,
+        symbol=request.symbol.upper(),
+        timeframe=request.timeframe,
+        days=request.days,
+        fetched=fetched,
+        saved=saved,
+        backend="supabase" if saved > 0 else "none",
+    )
+
+
+@app.post("/api/candles/collect")
+async def candles_collect():
+    settings = get_settings()
+    client = BinanceFuturesClient(settings)
+    results = await collect_all_recent_candles(settings, client)
+    return {"ok": any(saved > 0 for saved in results.values()), "items": results}
 
 
 @app.post("/api/backtest")

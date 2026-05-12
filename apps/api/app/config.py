@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     paper_risk_pct: float = Field(default=1.0, alias="PAPER_RISK_PCT")
     market_collector_enabled: bool = Field(default=True, alias="MARKET_COLLECTOR_ENABLED")
     market_collector_interval_seconds: int = Field(default=300, alias="MARKET_COLLECTOR_INTERVAL_SECONDS")
+    candle_collector_enabled: bool = Field(default=True, alias="CANDLE_COLLECTOR_ENABLED")
+    candle_collector_interval_seconds: int = Field(default=60, alias="CANDLE_COLLECTOR_INTERVAL_SECONDS")
+    candle_collector_symbols: str = Field(default="BNBUSDT,BTCUSDT", alias="CANDLE_COLLECTOR_SYMBOLS")
+    candle_collector_timeframes: str = Field(default="1m,5m,15m,1h", alias="CANDLE_COLLECTOR_TIMEFRAMES")
+    candle_collector_backfill_days: int = Field(default=7, alias="CANDLE_COLLECTOR_BACKFILL_DAYS")
     ai_committee_enabled: bool = Field(default=True, alias="AI_COMMITTEE_ENABLED")
     ai_primary_provider: str = Field(default="deepseek", alias="AI_PRIMARY_PROVIDER")
     ai_secondary_provider: str = Field(default="gemini", alias="AI_SECONDARY_PROVIDER")
@@ -67,6 +72,15 @@ class Settings(BaseSettings):
     @property
     def line_configured(self) -> bool:
         return bool(self.line_channel_access_token and self.line_user_id)
+
+    @property
+    def candle_symbols(self) -> list[str]:
+        return [symbol.strip().upper() for symbol in self.candle_collector_symbols.split(",") if symbol.strip()]
+
+    @property
+    def candle_timeframes(self) -> list[str]:
+        allowed = {"1m", "5m", "15m", "1h"}
+        return [timeframe.strip() for timeframe in self.candle_collector_timeframes.split(",") if timeframe.strip() in allowed]
 
 
 @lru_cache

@@ -153,6 +153,10 @@ class RuntimeStatus(BaseModel):
     paper_trading_interval_seconds: int
     market_collector_enabled: bool
     market_collector_interval_seconds: int
+    candle_collector_enabled: bool = False
+    candle_collector_interval_seconds: int = 60
+    candle_collector_symbols: list[str] = []
+    candle_collector_timeframes: list[str] = []
     ai_committee_enabled: bool = False
     ai_providers_configured: list[str] = []
     risk_daily_target_pct: float
@@ -200,6 +204,33 @@ class MarketDataRecord(BaseModel):
     detections: dict[str, bool] = {}
     market_context: dict[str, float | int | str | bool | None | dict[str, str]] = {}
     source: str = "collector"
+
+
+class CandleRecord(BaseModel):
+    symbol: str
+    timeframe: Literal["1m", "5m", "15m", "1h"]
+    open_time: int
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+
+
+class CandleBackfillRequest(BaseModel):
+    symbol: str = "BNBUSDT"
+    timeframe: Literal["1m", "5m", "15m", "1h"] = "15m"
+    days: int = Field(default=7, ge=1, le=90)
+
+
+class CandleBackfillResponse(BaseModel):
+    ok: bool
+    symbol: str
+    timeframe: str
+    days: int
+    fetched: int
+    saved: int
+    backend: Literal["supabase", "none"]
 
 
 class BacktestRequest(BaseModel):

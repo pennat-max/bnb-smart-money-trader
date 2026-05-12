@@ -55,25 +55,86 @@ class BinanceFuturesClient:
         )
         return self._format_klines(payload)
 
-    async def raw_klines_for_days(self, symbol: str, interval: str = "15m", days: int = 7) -> list[dict]:
-        interval_ms = interval_to_ms(interval)
+    async def raw_klines_range(
+        self,
+        symbol: str,
+        interval: str = "15m",
+        start_time: int | None = None,
+        end_time: int | None = None,
+        limit: int = 1500,
+    ) -> list[dict]:
+        params: dict[str, str | int] = {
+            "symbol": symbol,
+            "interval": interval,
+            "limit": max(1, min(limit, 1500)),
+        }
+        if start_time is not None:
+            params["startTime"] = start_time
+        if end_time is not None:
+            params["endTime"] = end_time
+        payload = await self._get("/fapi/v1/klines", params)
+        return self._format_klines(payload)
+
+    async def raw_market_klines_range(
+        self,
+        symbol: str,
+        interval: str = "15m",
+        start_time: int | None = None,
+        end_time: int | None = None,
+        limit: int = 1500,
+    ) -> list[dict]:
+        params: dict[str, str | int] = {
+            "symbol": symbol,
+            "interval": interval,
+            "limit": max(1, min(limit, 1500)),
+        }
+        if start_time is not None:
+            params["startTime"] = start_time
+        if end_time is not None:
+            params["endTime"] = end_time
+        payload = await self._get_market_data("/fapi/v1/klines", params)
+        return self._format_klines(payload)
+
+    async def raw_market_klines_for_days(self, symbol: str, interval: str = "15m", days: int = 7) -> list[dict]:
         end_time = int(time.time() * 1000)
         start_time = end_time - days * 24 * 60 * 60 * 1000
         candles: list[dict] = []
         cursor = start_time
 
         while cursor < end_time:
-            payload = await self._get(
-                "/fapi/v1/klines",
-                {
-                    "symbol": symbol,
-                    "interval": interval,
-                    "limit": 1500,
-                    "startTime": cursor,
-                    "endTime": end_time,
-                },
+            batch = await self.raw_market_klines_range(
+                symbol,
+                interval=interval,
+                start_time=cursor,
+                end_time=end_time,
+                limit=1500,
             )
-            batch = self._format_klines(payload)
+            if not batch:
+                break
+            candles.extend(batch)
+            next_cursor = batch[-1]["close_time"] + 1
+            if next_cursor <= cursor:
+                break
+            cursor = next_cursor
+            await asyncio.sleep(0.05)
+
+        unique = {candle["open_time"]: candle for candle in candles}
+        return [unique[key] for key in sorted(unique)]
+
+    async def raw_klines_for_days(self, symbol: str, interval: str = "15m", days: int = 7) -> list[dict]:
+        end_time = int(time.time() * 1000)
+        start_time = end_time - days * 24 * 60 * 60 * 1000
+        candles: list[dict] = []
+        cursor = start_time
+
+        while cursor < end_time:
+            batch = await self.raw_klines_range(
+                symbol,
+                interval=interval,
+                start_time=cursor,
+                end_time=end_time,
+                limit=1500,
+            )
             if not batch:
                 break
             candles.extend(batch)

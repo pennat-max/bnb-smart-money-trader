@@ -141,3 +141,46 @@ create policy "Allow market snapshot reads"
   for select
   to anon, authenticated
   using (true);
+
+create table if not exists public.candles (
+  symbol text not null,
+  timeframe text not null check (timeframe in ('1m', '5m', '15m', '1h')),
+  open_time bigint not null,
+  open numeric not null,
+  high numeric not null,
+  low numeric not null,
+  close numeric not null,
+  volume numeric not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (symbol, timeframe, open_time)
+);
+
+create index if not exists candles_backtest_idx
+  on public.candles (symbol, timeframe, open_time);
+
+create index if not exists candles_backtest_desc_idx
+  on public.candles (symbol, timeframe, open_time desc);
+
+create or replace function public.set_candles_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists candles_set_updated_at on public.candles;
+create trigger candles_set_updated_at
+  before update on public.candles
+  for each row
+  execute function public.set_candles_updated_at();
+
+alter table public.candles enable row level security;
+
+drop policy if exists "Allow candle reads" on public.candles;
+drop policy if exists "Allow candle upserts" on public.candles;
+drop policy if exists "Allow candle updates" on public.candles;
+
+-- Candle writes should go through the backend with SUPABASE_SERVICE_ROLE_KEY.
+-- No anon insert/update policy is added so clients cannot poison backtest data.
