@@ -13,7 +13,7 @@ from .config import get_settings
 from .journal import recent_signals, save_signal
 from .learning import summarize_learning
 from .line_alert import send_line_alert
-from .models import BacktestRequest, PaperRunRequest, PaperRunResponse, RuntimeStatus, TestnetOrderPreviewRequest
+from .models import BacktestRequest, DerivativesMetrics, PaperRunRequest, PaperRunResponse, RuntimeStatus, TestnetOrderPreviewRequest
 from .paper import active_paper_trade, load_paper_trades, maybe_close_trade, open_paper_trade, paper_entry_block_reason
 from .signal_engine import generate_signal
 
@@ -164,6 +164,46 @@ async def signal(
 async def history(limit: int = Query(default=25, ge=1, le=100)):
     settings = get_settings()
     return {"items": recent_signals(settings, limit)}
+
+
+@app.get("/api/derivatives", response_model=DerivativesMetrics)
+async def derivatives(symbol: str = Query(default="BNBUSDT"), period: str = Query(default="15m")):
+    settings = get_settings()
+    client = BinanceFuturesClient(settings)
+    context = await client.derivatives_context(symbol, period=period, limit=30)
+    long_short_ratio = float(context["long_short_ratio"])
+    taker_ratio = float(context["taker_buy_sell_ratio"])
+    oi_change = float(context["open_interest_change_pct"])
+    imbalance = float(context["bid_ask_imbalance"])
+    note_parts = []
+    if long_short_ratio > 1.6:
+        note_parts.append("crowded longs")
+    elif long_short_ratio < 0.7:
+        note_parts.append("crowded shorts")
+    if oi_change > 0.35:
+        note_parts.append("OI expanding")
+    if taker_ratio > 1.25:
+        note_parts.append("taker buy pressure")
+    elif taker_ratio < 0.8:
+        note_parts.append("taker sell pressure")
+    if imbalance > 0.12:
+        note_parts.append("bid wall imbalance")
+    elif imbalance < -0.12:
+        note_parts.append("ask wall imbalance")
+
+    return DerivativesMetrics(
+        symbol=symbol,
+        period=period,
+        data_ok=bool(context["data_ok"]),
+        open_interest_change_pct=oi_change,
+        long_short_ratio=long_short_ratio,
+        long_account=float(context["long_account"]),
+        short_account=float(context["short_account"]),
+        taker_buy_sell_ratio=taker_ratio,
+        taker_buy_volume_ratio=float(context["taker_buy_volume_ratio"]),
+        bid_ask_imbalance=imbalance,
+        smart_money_note=", ".join(note_parts) if note_parts else "no strong derivatives imbalance",
+    )
 
 
 @app.post("/api/backtest")

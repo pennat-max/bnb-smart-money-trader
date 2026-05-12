@@ -151,12 +151,23 @@ class BinanceFuturesClient:
             for row in payload
         ]
 
+    async def order_book_imbalance(self, symbol: str, limit: int = 50) -> float:
+        payload = await self._get_market_data("/fapi/v1/depth", {"symbol": symbol, "limit": max(5, min(limit, 100))})
+        bid_qty = sum(float(row[1]) for row in payload.get("bids", []))
+        ask_qty = sum(float(row[1]) for row in payload.get("asks", []))
+        total_qty = bid_qty + ask_qty
+        return ((bid_qty - ask_qty) / total_qty) if total_qty else 0
+
     async def derivatives_context(self, symbol: str, period: str = "15m", limit: int = 30) -> dict:
         context = {
+            "data_ok": False,
             "open_interest_change_pct": 0,
             "long_short_ratio": 1,
+            "long_account": 0.5,
+            "short_account": 0.5,
             "taker_buy_sell_ratio": 1,
             "taker_buy_volume_ratio": 0.5,
+            "bid_ask_imbalance": 0,
         }
         try:
             oi_rows = await self.open_interest_hist(symbol, period=period, limit=limit)
@@ -165,6 +176,7 @@ class BinanceFuturesClient:
                     (oi_rows[-1]["sum_open_interest"] - oi_rows[-2]["sum_open_interest"])
                     / oi_rows[-2]["sum_open_interest"]
                 ) * 100
+                context["data_ok"] = True
         except Exception:
             pass
 
@@ -172,6 +184,9 @@ class BinanceFuturesClient:
             ratio_rows = await self.global_long_short_ratio(symbol, period=period, limit=limit)
             if ratio_rows:
                 context["long_short_ratio"] = ratio_rows[-1]["long_short_ratio"]
+                context["long_account"] = ratio_rows[-1]["long_account"]
+                context["short_account"] = ratio_rows[-1]["short_account"]
+                context["data_ok"] = True
         except Exception:
             pass
 
@@ -182,6 +197,13 @@ class BinanceFuturesClient:
                 total_volume = latest["buy_volume"] + latest["sell_volume"]
                 context["taker_buy_sell_ratio"] = latest["buy_sell_ratio"]
                 context["taker_buy_volume_ratio"] = latest["buy_volume"] / total_volume if total_volume else 0.5
+                context["data_ok"] = True
+        except Exception:
+            pass
+
+        try:
+            context["bid_ask_imbalance"] = await self.order_book_imbalance(symbol)
+            context["data_ok"] = True
         except Exception:
             pass
 

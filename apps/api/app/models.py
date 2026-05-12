@@ -109,6 +109,21 @@ class RuntimeStatus(BaseModel):
     risk_max_active_bnb_positions: int
 
 
+class DerivativesMetrics(BaseModel):
+    symbol: str = "BNBUSDT"
+    period: str = "15m"
+    source: str = "binance_public_futures"
+    data_ok: bool
+    open_interest_change_pct: float = 0
+    long_short_ratio: float = 1
+    long_account: float = 0.5
+    short_account: float = 0.5
+    taker_buy_sell_ratio: float = 1
+    taker_buy_volume_ratio: float = 0.5
+    bid_ask_imbalance: float = 0
+    smart_money_note: str = ""
+
+
 class BacktestRequest(BaseModel):
     symbol: str = "BNBUSDT"
     interval: Literal["1m", "5m", "15m", "1h"] = "15m"
