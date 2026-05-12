@@ -75,12 +75,12 @@ type BacktestResult = {
 const apiUrl = "";
 
 const phases = [
-  { title: "Market Data", status: "active", text: "Historical candles, backfill, collector health, and gap checks." },
-  { title: "Replay Engine", status: "next", text: "Stored-candle replay without strategy changes." },
-  { title: "Backtest v2", status: "next", text: "Backtests reading Supabase candles and saving runs." },
-  { title: "Execution Model", status: "planned", text: "Shared fees, slippage, TP/SL, equity curve, drawdown." },
-  { title: "AI Analysis", status: "planned", text: "Analyze closed trades and regimes, no auto-parameter changes." },
-  { title: "Research Dashboard", status: "active", text: "This page becomes the operating cockpit." }
+  { title: "ข้อมูลตลาด", status: "กำลังใช้", text: "เก็บ candles ย้อนหลัง, backfill, ตรวจ collector และหา gap ของข้อมูล" },
+  { title: "Replay Engine", status: "ถัดไป", text: "จำลองตลาดจาก candles ที่เก็บไว้ โดยยังไม่แก้ strategy" },
+  { title: "Backtest v2", status: "ถัดไป", text: "ทดสอบย้อนหลังจาก Supabase candles และบันทึกผลการรัน" },
+  { title: "Execution Model", status: "วางแผน", text: "ใช้โมเดลเดียวกันสำหรับ fees, slippage, TP/SL, equity curve และ drawdown" },
+  { title: "AI Analysis", status: "วางแผน", text: "ให้ AI วิเคราะห์ trade ที่ปิดแล้วและ regime แต่ยังไม่ให้แก้ strategy อัตโนมัติ" },
+  { title: "Research Dashboard", status: "กำลังใช้", text: "หน้านี้คือ cockpit หลักสำหรับงานวิจัยระบบเทรด" }
 ];
 
 export default function ResearchLab() {
@@ -105,10 +105,10 @@ export default function ResearchLab() {
       if (healthResponse.ok) setMarketDataHealth((await healthResponse.json()) as MarketDataHealth);
       if (signalResponse.ok) setSignal((await signalResponse.json()) as SignalResponse);
       if (!statusResponse.ok || !healthResponse.ok || !signalResponse.ok) {
-        setError("Some backend checks are not responding.");
+        setError("บางส่วนของ backend ยังไม่ตอบสนอง");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown dashboard fetch error");
+      setError(err instanceof Error ? err.message : "โหลดข้อมูลหน้า dashboard ไม่สำเร็จ");
     }
   }
 
@@ -129,19 +129,19 @@ export default function ResearchLab() {
   }, [marketDataHealth]);
 
   async function collectNow() {
-    setMessage("Collecting latest candles...");
+    setMessage("กำลังรีเฟรชสุขภาพข้อมูลตลาด...");
     try {
       const response = await fetch(`${apiUrl}/market-data-health`, { cache: "no-store" });
       if (response.ok) setMarketDataHealth((await response.json()) as MarketDataHealth);
-      setMessage("Market data health refreshed.");
+      setMessage("รีเฟรชสุขภาพข้อมูลตลาดแล้ว");
     } catch {
-      setMessage("Refresh failed.");
+      setMessage("รีเฟรชไม่สำเร็จ");
     }
   }
 
   async function runQuickBacktest() {
     setBacktestRunning(true);
-    setMessage("Running legacy quick backtest for reference only...");
+    setMessage("กำลังรัน legacy backtest แบบเร็วเพื่ออ้างอิงเท่านั้น...");
     try {
       const response = await fetch(`${apiUrl}/backtest`, {
         body: JSON.stringify({
@@ -156,12 +156,12 @@ export default function ResearchLab() {
         headers: { "content-type": "application/json" },
         method: "POST"
       });
-      if (!response.ok) throw new Error("Backtest request failed");
+      if (!response.ok) throw new Error("สั่ง backtest ไม่สำเร็จ");
       const payload = (await response.json()) as BacktestResult;
       setBacktestResult(payload);
-      setMessage("Legacy backtest complete. Backtest v2 will replace this later.");
+      setMessage("Legacy backtest เสร็จแล้ว ต่อไป Backtest v2 จะมาแทนส่วนนี้");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Backtest failed.");
+      setMessage(err instanceof Error ? err.message : "Backtest ไม่สำเร็จ");
     } finally {
       setBacktestRunning(false);
     }
@@ -171,11 +171,11 @@ export default function ResearchLab() {
     <main className="labShell">
       <header className="labHeader">
         <div>
-          <p className="eyebrow">Research-first / Signal-only / No real trading</p>
-          <h1>AI Trading Research Lab</h1>
-          <p className="headerText">Market data foundation first. Replay, backtest v2, shared execution, and AI analysis come after the data is stable.</p>
+          <p className="eyebrow">Research-first / Signal-only / ไม่เทรดเงินจริง</p>
+          <h1>ห้องวิจัย AI Trading</h1>
+          <p className="headerText">เริ่มจากฐานข้อมูลตลาดให้แน่นก่อน แล้วค่อยต่อ Replay, Backtest v2, execution model กลาง และ AI analysis หลังจากข้อมูลเสถียรแล้ว</p>
         </div>
-        <button className="iconButton" onClick={refresh} title="Refresh lab" aria-label="Refresh lab">
+        <button className="iconButton" onClick={refresh} title="รีเฟรช" aria-label="รีเฟรช">
           <Activity size={20} />
         </button>
       </header>
@@ -188,23 +188,23 @@ export default function ResearchLab() {
       )}
 
       <section className="safetyGrid">
-        <StatusCard icon={<ShieldCheck />} label="Mode" value={runtimeStatus?.mode ?? "loading"} tone="cyan" />
-        <StatusCard icon={<ShieldCheck />} label="Real Trading" value={runtimeStatus?.real_trading ? "LIVE" : "FALSE"} tone={runtimeStatus?.real_trading ? "red" : "green"} />
-        <StatusCard icon={<Database />} label="Data Health" value={marketDataHealth?.status.toUpperCase() ?? "LOADING"} tone={marketDataHealth?.status === "pass" ? "green" : marketDataHealth?.status === "fail" ? "red" : "amber"} />
+        <StatusCard icon={<ShieldCheck />} label="โหมดระบบ" value={runtimeStatus?.mode ?? "กำลังโหลด"} tone="cyan" />
+        <StatusCard icon={<ShieldCheck />} label="เทรดเงินจริง" value={runtimeStatus?.real_trading ? "เปิดอยู่" : "ปิดอยู่"} tone={runtimeStatus?.real_trading ? "red" : "green"} />
+        <StatusCard icon={<Database />} label="สุขภาพข้อมูล" value={thaiHealth(marketDataHealth?.status)} tone={marketDataHealth?.status === "pass" ? "green" : marketDataHealth?.status === "fail" ? "red" : "amber"} />
         <StatusCard icon={<Clock3 />} label="Collector" value={runtimeStatus?.candle_collector_enabled ? `${runtimeStatus.candle_collector_interval_seconds ?? 60}s` : "off"} tone="cyan" />
       </section>
 
       <section className="primaryGrid">
         <div className="panel marketPanel">
           <div className="panelHeader">
-            <span>Market Data Foundation</span>
-            <strong className={`healthPill ${marketDataHealth?.status ?? "warn"}`}>{marketDataHealth?.status.toUpperCase() ?? "LOADING"}</strong>
+            <span>ฐานข้อมูลตลาด</span>
+            <strong className={`healthPill ${marketDataHealth?.status ?? "warn"}`}>{thaiHealth(marketDataHealth?.status)}</strong>
           </div>
           <div className="foundationStats">
-            <Field label="Stored Candles" value={totals.totalCandles.toLocaleString()} />
-            <Field label="Recent Gaps" value={`${totals.gaps}`} />
-            <Field label="Warnings" value={`${totals.warning}`} />
-            <Field label="Failures" value={`${totals.failing}`} />
+            <Field label="Candles ที่เก็บแล้ว" value={totals.totalCandles.toLocaleString()} />
+            <Field label="Gap ล่าสุด" value={`${totals.gaps}`} />
+            <Field label="คำเตือน" value={`${totals.warning}`} />
+            <Field label="ปัญหา" value={`${totals.failing}`} />
           </div>
           <div className="healthGrid">
             {(marketDataHealth?.candles ?? []).map((item) => (
@@ -216,7 +216,7 @@ export default function ResearchLab() {
                 <div className="healthStats">
                   <span>{item.count.toLocaleString()} candles</span>
                   <span>{formatAge(item.latest_age_seconds)}</span>
-                  <span>{item.gap_count_recent} recent gaps</span>
+                  <span>{item.gap_count_recent} gaps ล่าสุด</span>
                 </div>
               </div>
             ))}
@@ -225,7 +225,7 @@ export default function ResearchLab() {
 
         <div className="panel">
           <div className="panelHeader">
-            <span>Current Signal Safety Monitor</span>
+            <span>ตัวตรวจความปลอดภัยของ Signal</span>
             <ShieldCheck size={18} />
           </div>
           <div className="signalReadout">
@@ -235,12 +235,12 @@ export default function ResearchLab() {
               <strong>{signal ? usd(signal.price) : "--"}</strong>
             </div>
             <div>
-              <span>Confidence</span>
+              <span>ความมั่นใจ</span>
               <strong>{signal?.confidence ?? 0}%</strong>
             </div>
           </div>
-          <p className="reasoning">{signal?.reasoning_th ?? "Loading signal monitor..."}</p>
-          <p className="saveState">Journal: {signal?.journal_backend ?? "--"} / Trading: {runtimeStatus?.real_trading ? "live" : "signal-only"}</p>
+          <p className="reasoning">{signal?.reasoning_th ?? "กำลังโหลด signal monitor..."}</p>
+          <p className="saveState">Journal: {signal?.journal_backend ?? "--"} / การเทรด: {runtimeStatus?.real_trading ? "live" : "signal-only"}</p>
         </div>
       </section>
 
@@ -260,7 +260,7 @@ export default function ResearchLab() {
       <section className="researchGrid">
         <div className="panel">
           <div className="panelHeader">
-            <span>Collector Runs</span>
+            <span>ประวัติ Collector</span>
             <Database size={18} />
           </div>
           <div className="runList">
@@ -275,20 +275,20 @@ export default function ResearchLab() {
 
         <div className="panel">
           <div className="panelHeader">
-            <span>Research Controls</span>
+            <span>เครื่องมือวิจัย</span>
             <FlaskConical size={18} />
           </div>
           <div className="buttonStack">
             <button className="wideButton" onClick={collectNow}>
               <Database size={16} />
-              Refresh Data Health
+              รีเฟรชสุขภาพข้อมูล
             </button>
             <button className="wideButton secondary" onClick={runQuickBacktest} disabled={backtestRunning}>
               {backtestRunning ? <Activity size={16} className="spinIcon" /> : <Play size={16} />}
-              Legacy 1d Backtest
+              Legacy Backtest 1 วัน
             </button>
           </div>
-          <p className="saveState">{message ?? "Controls are research-only. No orders are sent."}</p>
+          <p className="saveState">{message ?? "เครื่องมือนี้ใช้เพื่อวิจัยเท่านั้น ไม่มีการส่ง order จริง"}</p>
           {backtestResult && (
             <div className="foundationStats">
               <Field label="Candles" value={`${backtestResult.candles_tested}`} />
@@ -301,14 +301,14 @@ export default function ResearchLab() {
 
         <div className="panel">
           <div className="panelHeader">
-            <span>Next Build Queue</span>
+            <span>ลำดับงานถัดไป</span>
             <Brain size={18} />
           </div>
           <div className="queueList">
-            <QueueItem icon={<LineChart />} title="Replay Engine" text="Read stored candles and replay windows." />
-            <QueueItem icon={<BarChart3 />} title="Backtest v2" text="Use Supabase candles and save run results." />
-            <QueueItem icon={<FlaskConical />} title="Shared Execution" text="One model for fees, slippage, TP/SL, drawdown." />
-            <QueueItem icon={<Brain />} title="AI Reports" text="Persist analysis, classify setups, no auto-change." />
+            <QueueItem icon={<LineChart />} title="Replay Engine" text="อ่าน candles ที่เก็บไว้แล้วจำลองตลาดย้อนหลัง" />
+            <QueueItem icon={<BarChart3 />} title="Backtest v2" text="ใช้ Supabase candles และบันทึกผลการรัน" />
+            <QueueItem icon={<FlaskConical />} title="Shared Execution" text="ใช้โมเดลเดียวสำหรับ fees, slippage, TP/SL และ drawdown" />
+            <QueueItem icon={<Brain />} title="AI Reports" text="บันทึกบทวิเคราะห์และจัดกลุ่ม setup โดยยังไม่แก้ strategy อัตโนมัติ" />
           </div>
         </div>
       </section>
@@ -351,7 +351,14 @@ function usd(value: number) {
 
 function formatAge(seconds: number | null) {
   if (seconds === null) return "--";
-  if (seconds < 60) return `${seconds}s old`;
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m old`;
-  return `${Math.round(seconds / 3600)}h old`;
+  if (seconds < 60) return `${seconds} วินาที`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)} นาที`;
+  return `${Math.round(seconds / 3600)} ชั่วโมง`;
+}
+
+function thaiHealth(status?: "pass" | "warn" | "fail") {
+  if (status === "pass") return "ปกติ";
+  if (status === "warn") return "เตือน";
+  if (status === "fail") return "มีปัญหา";
+  return "กำลังโหลด";
 }
