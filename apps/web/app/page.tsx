@@ -86,6 +86,15 @@ type BacktestResult = {
   ending_balance: number;
   max_drawdown_pct: number;
   learning_note: string;
+  profile: string;
+  optimizer_note: string;
+  tested_profiles: Array<{
+    profile: string;
+    trades: number;
+    win_rate: number;
+    pnl: number;
+    max_dd: number;
+  }>;
 };
 
 type LearningSummary = {
@@ -138,6 +147,8 @@ export default function Dashboard() {
   const [backtestLimit, setBacktestLimit] = useState(500);
   const [backtestDays, setBacktestDays] = useState(7);
   const [backtestInterval, setBacktestInterval] = useState<"1m" | "5m" | "15m" | "1h">("15m");
+  const [optimizeWinRate, setOptimizeWinRate] = useState(true);
+  const [minBacktestTrades, setMinBacktestTrades] = useState(10);
   const [paperEnabled, setPaperEnabled] = useState(false);
   const [paperBalance, setPaperBalance] = useState(1000);
   const [paperRisk, setPaperRisk] = useState(1);
@@ -226,7 +237,9 @@ export default function Dashboard() {
           period_days: backtestDays,
           limit: backtestLimit,
           lookahead_candles: 30,
-          starting_balance: paperBalance
+          starting_balance: paperBalance,
+          optimize_for_win_rate: optimizeWinRate,
+          min_trades: minBacktestTrades
         }),
         headers: { "content-type": "application/json" },
         method: "POST"
@@ -460,6 +473,20 @@ export default function Dashboard() {
               onChange={(event) => setBacktestLimit(Number(event.target.value))}
             />
           </label>
+          <label className="toggleRow">
+            <input type="checkbox" checked={optimizeWinRate} onChange={(event) => setOptimizeWinRate(event.target.checked)} />
+            Optimize for highest win rate
+          </label>
+          <label className="pnlControl">
+            Min Trades
+            <input
+              min="1"
+              max="500"
+              type="number"
+              value={minBacktestTrades}
+              onChange={(event) => setMinBacktestTrades(Number(event.target.value))}
+            />
+          </label>
           <button className="wideButton" onClick={runBacktest} disabled={backtestRunning}>
             {backtestRunning ? <Activity size={16} className="spinIcon" /> : <Play size={16} />}
             {backtestRunning ? "Running..." : "Run Backtest"}
@@ -477,11 +504,24 @@ export default function Dashboard() {
               <Field label="Max DD" value={`${backtestResult.max_drawdown_pct}%`} />
               <Field label="Candles" value={`${backtestResult.candles_tested}`} />
               <Field label="Range" value={`${backtestResult.period_days}d / ${backtestResult.interval}`} />
+              <Field label="Profile" value={backtestResult.profile} />
+              <Field label="Optimizer" value={optimizeWinRate ? "on" : "off"} />
             </div>
           ) : (
             <p className="empty">Run historical test before trusting any setup.</p>
           )}
           {backtestResult && <p className="saveState">{backtestResult.learning_note}</p>}
+          {backtestResult?.optimizer_note && <p className="saveState">{backtestResult.optimizer_note}</p>}
+          {Boolean(backtestResult?.tested_profiles?.length) && (
+            <div className="profileList">
+              {backtestResult?.tested_profiles.map((profile) => (
+                <div className="profileItem" key={profile.profile}>
+                  <strong>{profile.profile}</strong>
+                  <span>{profile.win_rate}% WR / {profile.trades} trades / {profile.pnl}% PnL</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="panel">

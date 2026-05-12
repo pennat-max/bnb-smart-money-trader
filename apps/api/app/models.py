@@ -103,6 +103,8 @@ class BacktestRequest(BaseModel):
     limit: int = Field(default=500, ge=150, le=1500)
     lookahead_candles: int = Field(default=30, ge=3, le=240)
     starting_balance: float = Field(default=1000, gt=0)
+    optimize_for_win_rate: bool = True
+    min_trades: int = Field(default=10, ge=1, le=500)
 
 
 class BacktestTrade(BaseModel):
@@ -133,6 +135,9 @@ class BacktestResult(BaseModel):
     ending_balance: float
     max_drawdown_pct: float
     learning_note: str
+    profile: str = "base"
+    optimizer_note: str = ""
+    tested_profiles: list[dict[str, float | int | str]] = []
     recent_trades: list[BacktestTrade]
 
 

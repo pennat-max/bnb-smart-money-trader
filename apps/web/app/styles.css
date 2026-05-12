@@ -405,9 +405,27 @@ h1 {
   justify-content: space-between;
 }
 
-.historyItem span {
+.historyItem span,
+.profileItem span {
   color: var(--muted);
   font-size: 13px;
+}
+
+.profileList {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.profileItem {
+  align-items: center;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 9px 10px;
 }
 
 .personality {
