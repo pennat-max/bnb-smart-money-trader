@@ -18,6 +18,19 @@ type SignalResponse = {
   long_short_ratio: number;
   taker_buy_sell_ratio: number;
   taker_buy_volume_ratio: number;
+  bid_ask_imbalance: number;
+  depth_wall_side: string;
+  depth_wall_price: number | null;
+  vwap: number;
+  session_high: number;
+  session_low: number;
+  session_position: number;
+  volume_zscore: number;
+  mtf_bias: string;
+  mtf_alignment_score: number;
+  mtf_trends: Record<string, string>;
+  liquidation_imbalance: number;
+  liquidation_spike: boolean;
   reasoning_th: string;
   reasoning_en: string;
   confidence: number;
@@ -89,6 +102,14 @@ type DerivativesMetrics = {
   taker_buy_sell_ratio: number;
   taker_buy_volume_ratio: number;
   bid_ask_imbalance: number;
+  depth_bid_qty: number;
+  depth_ask_qty: number;
+  depth_wall_side: string;
+  depth_wall_price: number | null;
+  liquidation_buy_qty: number;
+  liquidation_sell_qty: number;
+  liquidation_imbalance: number;
+  liquidation_spike: boolean;
   smart_money_note: string;
 };
 
@@ -417,9 +438,18 @@ export default function Dashboard() {
             <Field label="Taker Buy" value={derivatives ? `${(derivatives.taker_buy_volume_ratio * 100).toFixed(1)}%` : signal ? `${(signal.taker_buy_volume_ratio * 100).toFixed(1)}%` : "--"} />
             <Field label="Taker Ratio" value={derivatives ? derivatives.taker_buy_sell_ratio.toFixed(3) : num(signal?.taker_buy_sell_ratio)} />
             <Field label="Book Imbalance" value={derivatives ? derivatives.bid_ask_imbalance.toFixed(3) : "--"} />
+            <Field label="Depth Wall" value={derivatives ? wallLabel(derivatives.depth_wall_side, derivatives.depth_wall_price) : wallLabel(signal?.depth_wall_side, signal?.depth_wall_price)} />
+            <Field label="Liquidation" value={derivatives ? derivatives.liquidation_imbalance.toFixed(3) : num(signal?.liquidation_imbalance)} />
+            <Field label="VWAP" value={signal?.vwap ? usd(signal.vwap) : "--"} />
+            <Field label="Session" value={signal ? `${(signal.session_position * 100).toFixed(0)}%` : "--"} />
+            <Field label="MTF Bias" value={signal ? `${signal.mtf_bias} / ${signal.mtf_alignment_score}` : "--"} />
+            <Field label="Volume Z" value={num(signal?.volume_zscore)} />
             <Field label="Derivatives API" value={derivatives?.data_ok ? "online" : "--"} />
           </div>
           <p className="saveState">{derivatives?.smart_money_note ?? "Binance derivatives data loading..."}</p>
+          <p className="saveState">
+            MTF: {signal ? Object.entries(signal.mtf_trends).map(([tf, trend]) => `${tf} ${trend}`).join(" / ") : "loading..."}
+          </p>
         </div>
 
         <div className="panel">
@@ -737,6 +767,11 @@ function num(value?: number) {
 
 function priceOrDash(value?: number | null) {
   return value ? usd(value) : "--";
+}
+
+function wallLabel(side?: string, price?: number | null) {
+  if (!side || side === "neutral") return "neutral";
+  return price ? `${side} ${usd(price)}` : side;
 }
 
 function journalLabel(signal: SignalResponse | null) {

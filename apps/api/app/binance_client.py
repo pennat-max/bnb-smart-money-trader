@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from statistics import fmean, pstdev
 
 import httpx
 
@@ -151,12 +152,103 @@ class BinanceFuturesClient:
             for row in payload
         ]
 
-    async def order_book_imbalance(self, symbol: str, limit: int = 50) -> float:
+    async def order_book_snapshot(self, symbol: str, limit: int = 50) -> dict:
         payload = await self._get_market_data("/fapi/v1/depth", {"symbol": symbol, "limit": max(5, min(limit, 100))})
-        bid_qty = sum(float(row[1]) for row in payload.get("bids", []))
-        ask_qty = sum(float(row[1]) for row in payload.get("asks", []))
+        bids = [(float(row[0]), float(row[1])) for row in payload.get("bids", [])]
+        asks = [(float(row[0]), float(row[1])) for row in payload.get("asks", [])]
+        bid_qty = sum(row[1] for row in bids)
+        ask_qty = sum(row[1] for row in asks)
         total_qty = bid_qty + ask_qty
-        return ((bid_qty - ask_qty) / total_qty) if total_qty else 0
+        strongest_bid = max(bids, key=lambda row: row[1], default=(0, 0))
+        strongest_ask = max(asks, key=lambda row: row[1], default=(0, 0))
+        wall_side = "neutral"
+        wall_price = None
+        if strongest_bid[1] > strongest_ask[1] * 1.35:
+            wall_side = "bid"
+            wall_price = strongest_bid[0]
+        elif strongest_ask[1] > strongest_bid[1] * 1.35:
+            wall_side = "ask"
+            wall_price = strongest_ask[0]
+        return {
+            "bid_ask_imbalance": ((bid_qty - ask_qty) / total_qty) if total_qty else 0,
+            "depth_bid_qty": bid_qty,
+            "depth_ask_qty": ask_qty,
+            "depth_wall_side": wall_side,
+            "depth_wall_price": wall_price,
+        }
+
+    async def recent_liquidations(self, symbol: str, limit: int = 100) -> dict:
+        context = {
+            "liquidation_buy_qty": 0,
+            "liquidation_sell_qty": 0,
+            "liquidation_imbalance": 0,
+            "liquidation_spike": False,
+        }
+        try:
+            payload = await self._get_market_data(
+                "/fapi/v1/allForceOrders",
+                {"symbol": symbol, "limit": max(10, min(limit, 100))},
+            )
+        except Exception:
+            return context
+
+        buy_qty = 0.0
+        sell_qty = 0.0
+        for row in payload:
+            qty = float(row.get("origQty", row.get("executedQty", 0)) or 0)
+            if row.get("side") == "BUY":
+                buy_qty += qty
+            elif row.get("side") == "SELL":
+                sell_qty += qty
+        total = buy_qty + sell_qty
+        context["liquidation_buy_qty"] = buy_qty
+        context["liquidation_sell_qty"] = sell_qty
+        context["liquidation_imbalance"] = ((buy_qty - sell_qty) / total) if total else 0
+        context["liquidation_spike"] = total > 50
+        return context
+
+    def candle_context(self, candles: list[list[float]]) -> dict:
+        if not candles:
+            return {
+                "vwap": 0,
+                "session_high": 0,
+                "session_low": 0,
+                "session_position": 0.5,
+                "volume_zscore": 0,
+            }
+        typical_volume = [((row[1] + row[2] + row[3]) / 3, row[4]) for row in candles]
+        total_volume = sum(volume for _, volume in typical_volume)
+        vwap = sum(price * volume for price, volume in typical_volume) / total_volume if total_volume else candles[-1][3]
+        session_high = max(row[1] for row in candles)
+        session_low = min(row[2] for row in candles)
+        session_range = max(session_high - session_low, 0.0001)
+        volumes = [row[4] for row in candles]
+        volume_sigma = pstdev(volumes) if len(volumes) > 1 else 0
+        volume_zscore = ((volumes[-1] - fmean(volumes)) / volume_sigma) if volume_sigma else 0
+        return {
+            "vwap": vwap,
+            "session_high": session_high,
+            "session_low": session_low,
+            "session_position": (candles[-1][3] - session_low) / session_range,
+            "volume_zscore": volume_zscore,
+        }
+
+    async def multi_timeframe_context(self, symbol: str) -> dict:
+        trends: dict[str, str] = {}
+        score = 0
+        for interval in ("5m", "15m", "1h"):
+            try:
+                candles = await self.klines(symbol, interval=interval, limit=80)
+                trend = trend_from_candles(candles)
+            except Exception:
+                trend = "mixed"
+            trends[interval] = trend
+            if trend == "bullish":
+                score += 1
+            elif trend == "bearish":
+                score -= 1
+        bias = "bullish" if score >= 2 else "bearish" if score <= -2 else "mixed"
+        return {"mtf_trends": trends, "mtf_alignment_score": score, "mtf_bias": bias}
 
     async def derivatives_context(self, symbol: str, period: str = "15m", limit: int = 30) -> dict:
         context = {
@@ -168,6 +260,14 @@ class BinanceFuturesClient:
             "taker_buy_sell_ratio": 1,
             "taker_buy_volume_ratio": 0.5,
             "bid_ask_imbalance": 0,
+            "depth_bid_qty": 0,
+            "depth_ask_qty": 0,
+            "depth_wall_side": "neutral",
+            "depth_wall_price": None,
+            "liquidation_buy_qty": 0,
+            "liquidation_sell_qty": 0,
+            "liquidation_imbalance": 0,
+            "liquidation_spike": False,
         }
         try:
             oi_rows = await self.open_interest_hist(symbol, period=period, limit=limit)
@@ -202,10 +302,12 @@ class BinanceFuturesClient:
             pass
 
         try:
-            context["bid_ask_imbalance"] = await self.order_book_imbalance(symbol)
+            context.update(await self.order_book_snapshot(symbol))
             context["data_ok"] = True
         except Exception:
             pass
+
+        context.update(await self.recent_liquidations(symbol))
 
         return context
 
@@ -258,6 +360,8 @@ class BinanceFuturesClient:
         funding_rate = await self.funding_rate(symbol)
         open_interest = await self.open_interest(symbol)
         derivatives = await self.derivatives_context(symbol, period="15m", limit=30)
+        candle_context = self.candle_context(candles)
+        mtf_context = await self.multi_timeframe_context(symbol)
         return MarketSnapshot(
             symbol=symbol,
             price=price,
@@ -268,6 +372,23 @@ class BinanceFuturesClient:
             long_short_ratio=derivatives["long_short_ratio"],
             taker_buy_sell_ratio=derivatives["taker_buy_sell_ratio"],
             taker_buy_volume_ratio=derivatives["taker_buy_volume_ratio"],
+            bid_ask_imbalance=derivatives["bid_ask_imbalance"],
+            depth_bid_qty=derivatives["depth_bid_qty"],
+            depth_ask_qty=derivatives["depth_ask_qty"],
+            depth_wall_side=derivatives["depth_wall_side"],
+            depth_wall_price=derivatives["depth_wall_price"],
+            liquidation_buy_qty=derivatives["liquidation_buy_qty"],
+            liquidation_sell_qty=derivatives["liquidation_sell_qty"],
+            liquidation_imbalance=derivatives["liquidation_imbalance"],
+            liquidation_spike=derivatives["liquidation_spike"],
+            vwap=candle_context["vwap"],
+            session_high=candle_context["session_high"],
+            session_low=candle_context["session_low"],
+            session_position=candle_context["session_position"],
+            volume_zscore=candle_context["volume_zscore"],
+            mtf_bias=mtf_context["mtf_bias"],
+            mtf_alignment_score=mtf_context["mtf_alignment_score"],
+            mtf_trends=mtf_context["mtf_trends"],
             candles=candles,
         )
 
@@ -285,3 +406,17 @@ def market_data_period(interval: str) -> str:
     if interval == "1m":
         return "5m"
     return interval if interval in allowed else "15m"
+
+
+def trend_from_candles(candles: list[list[float]]) -> str:
+    if len(candles) < 30:
+        return "mixed"
+    closes = [row[3] for row in candles]
+    fast = sum(closes[-5:]) / 5
+    medium = sum(closes[-10:]) / 10
+    slow = sum(closes[-30:]) / 30
+    if fast > medium > slow:
+        return "bullish"
+    if fast < medium < slow:
+        return "bearish"
+    return "mixed"

@@ -28,7 +28,22 @@ def market_record_from_signal(signal: SignalResponse) -> MarketDataRecord:
         long_short_ratio=signal.long_short_ratio,
         taker_buy_sell_ratio=signal.taker_buy_sell_ratio,
         taker_buy_volume_ratio=signal.taker_buy_volume_ratio,
+        bid_ask_imbalance=signal.bid_ask_imbalance,
+        liquidation_imbalance=signal.liquidation_imbalance,
+        mtf_alignment_score=signal.mtf_alignment_score,
         detections=signal.detections.model_dump(mode="json"),
+        market_context={
+            "vwap": signal.vwap,
+            "session_high": signal.session_high,
+            "session_low": signal.session_low,
+            "session_position": signal.session_position,
+            "volume_zscore": signal.volume_zscore,
+            "mtf_bias": signal.mtf_bias,
+            "mtf_trends": signal.mtf_trends,
+            "depth_wall_side": signal.depth_wall_side,
+            "depth_wall_price": signal.depth_wall_price,
+            "liquidation_spike": signal.liquidation_spike,
+        },
         source="signal_collector",
     )
 

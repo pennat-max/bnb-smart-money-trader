@@ -33,6 +33,14 @@ def _confidence(base: int, detections: DetectionSnapshot, trend_aligned: bool) -
         score += 3
     if detections.bullish_order_block or detections.bearish_order_block:
         score += 4
+    if detections.vwap_reclaim or detections.vwap_rejection:
+        score += 3
+    if detections.bullish_mtf_alignment or detections.bearish_mtf_alignment:
+        score += 6
+    if detections.liquidation_long_flush or detections.liquidation_short_flush:
+        score += 5
+    if detections.bid_wall or detections.ask_wall:
+        score += 2
     if trend_aligned:
         score += 8
     return max(0, min(score, 95))
@@ -56,18 +64,20 @@ def generate_signal(
 
     signal = "WAIT"
     base_confidence = 52
+    bullish_context = detections.bullish_mtf_alignment or detections.discount_zone or detections.vwap_reclaim
+    bearish_context = detections.bearish_mtf_alignment or detections.premium_zone or detections.vwap_rejection
     if bullish_trend and detections.trapped_shorts and indicators.rsi < 72 and btc_supports_risk:
         signal = "LONG"
         base_confidence = 62
     elif bearish_trend and detections.trapped_longs and indicators.rsi > 28:
         signal = "SHORT"
         base_confidence = 62
-    elif bullish_trend and indicators.rsi < 68 and price > indicators.bb_middle and btc_supports_risk:
+    elif bullish_trend and bullish_context and indicators.rsi < 68 and price > indicators.bb_middle and btc_supports_risk:
         signal = "LONG"
-        base_confidence = 56
-    elif bearish_trend and indicators.rsi > 32 and price < indicators.bb_middle:
+        base_confidence = 58
+    elif bearish_trend and bearish_context and indicators.rsi > 32 and price < indicators.bb_middle:
         signal = "SHORT"
-        base_confidence = 56
+        base_confidence = 58
 
     trend_aligned = (signal == "LONG" and bullish_trend) or (signal == "SHORT" and bearish_trend)
     confidence = _confidence(base_confidence, detections, trend_aligned) if signal != "WAIT" else 45
@@ -99,7 +109,8 @@ def generate_signal(
     thai_trend = "\u0e02\u0e32\u0e02\u0e36\u0e49\u0e19" if bullish_trend else "\u0e02\u0e32\u0e25\u0e07" if bearish_trend else "\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e0a\u0e31\u0e14"
     reasoning_th = (
         f"BNB \u0e15\u0e2d\u0e19\u0e19\u0e35\u0e49\u0e40\u0e1b\u0e47\u0e19 {signal}. EMA/MACD \u0e43\u0e2b\u0e49\u0e20\u0e32\u0e1e {thai_trend}; "
-        f"RSI {indicators.rsi:.1f}. {pattern_text} Funding {snapshot.funding_rate:.4%}, OI {snapshot.open_interest:.0f}. "
+        f"RSI {indicators.rsi:.1f}. {pattern_text} VWAP {snapshot.vwap:.2f}, MTF {snapshot.mtf_bias}. "
+        f"Funding {snapshot.funding_rate:.4%}, OI {snapshot.open_interest:.0f}. "
         "\u0e23\u0e30\u0e1a\u0e1a\u0e22\u0e31\u0e07\u0e40\u0e1b\u0e47\u0e19 signal-only \u0e44\u0e21\u0e48\u0e21\u0e35\u0e01\u0e32\u0e23\u0e2a\u0e48\u0e07\u0e2d\u0e2d\u0e40\u0e14\u0e2d\u0e23\u0e4c\u0e08\u0e23\u0e34\u0e07."
     )
     reasoning_en = (
@@ -122,6 +133,19 @@ def generate_signal(
         long_short_ratio=snapshot.long_short_ratio,
         taker_buy_sell_ratio=snapshot.taker_buy_sell_ratio,
         taker_buy_volume_ratio=snapshot.taker_buy_volume_ratio,
+        bid_ask_imbalance=snapshot.bid_ask_imbalance,
+        depth_wall_side=snapshot.depth_wall_side,
+        depth_wall_price=snapshot.depth_wall_price,
+        vwap=snapshot.vwap,
+        session_high=snapshot.session_high,
+        session_low=snapshot.session_low,
+        session_position=snapshot.session_position,
+        volume_zscore=snapshot.volume_zscore,
+        mtf_bias=snapshot.mtf_bias,
+        mtf_alignment_score=snapshot.mtf_alignment_score,
+        mtf_trends=snapshot.mtf_trends,
+        liquidation_imbalance=snapshot.liquidation_imbalance,
+        liquidation_spike=snapshot.liquidation_spike,
         indicators=indicators,
         detections=detections,
         reasoning_th=reasoning_th,
@@ -176,6 +200,26 @@ def _pattern_text(detections: DetectionSnapshot) -> str:
         names.append("bullish order block")
     if detections.bearish_order_block:
         names.append("bearish order block")
+    if detections.vwap_reclaim:
+        names.append("VWAP reclaim")
+    if detections.vwap_rejection:
+        names.append("VWAP rejection")
+    if detections.premium_zone:
+        names.append("premium zone")
+    if detections.discount_zone:
+        names.append("discount zone")
+    if detections.bullish_mtf_alignment:
+        names.append("bullish MTF alignment")
+    if detections.bearish_mtf_alignment:
+        names.append("bearish MTF alignment")
+    if detections.liquidation_long_flush:
+        names.append("long liquidation flush")
+    if detections.liquidation_short_flush:
+        names.append("short liquidation flush")
+    if detections.bid_wall:
+        names.append("bid wall")
+    if detections.ask_wall:
+        names.append("ask wall")
     return "\u0e40\u0e08\u0e2d " + ", ".join(names) + "." if names else "\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e40\u0e08\u0e2d smart money trap \u0e0a\u0e31\u0e14\u0e40\u0e08\u0e19."
 
 

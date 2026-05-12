@@ -17,6 +17,23 @@ class MarketSnapshot(BaseModel):
     long_short_ratio: float = 1
     taker_buy_sell_ratio: float = 1
     taker_buy_volume_ratio: float = 0.5
+    bid_ask_imbalance: float = 0
+    depth_bid_qty: float = 0
+    depth_ask_qty: float = 0
+    depth_wall_side: str = "neutral"
+    depth_wall_price: float | None = None
+    vwap: float = 0
+    session_high: float = 0
+    session_low: float = 0
+    session_position: float = 0.5
+    volume_zscore: float = 0
+    mtf_bias: str = "mixed"
+    mtf_alignment_score: int = 0
+    mtf_trends: dict[str, str] = {}
+    liquidation_buy_qty: float = 0
+    liquidation_sell_qty: float = 0
+    liquidation_imbalance: float = 0
+    liquidation_spike: bool = False
     candles: list[list[float]]
 
 
@@ -53,6 +70,16 @@ class DetectionSnapshot(BaseModel):
     bearish_fvg: bool = False
     bullish_order_block: bool = False
     bearish_order_block: bool = False
+    vwap_reclaim: bool = False
+    vwap_rejection: bool = False
+    premium_zone: bool = False
+    discount_zone: bool = False
+    bullish_mtf_alignment: bool = False
+    bearish_mtf_alignment: bool = False
+    liquidation_long_flush: bool = False
+    liquidation_short_flush: bool = False
+    bid_wall: bool = False
+    ask_wall: bool = False
 
 
 class TradeSuggestion(BaseModel):
@@ -75,6 +102,19 @@ class SignalResponse(BaseModel):
     long_short_ratio: float = 1
     taker_buy_sell_ratio: float = 1
     taker_buy_volume_ratio: float = 0.5
+    bid_ask_imbalance: float = 0
+    depth_wall_side: str = "neutral"
+    depth_wall_price: float | None = None
+    vwap: float = 0
+    session_high: float = 0
+    session_low: float = 0
+    session_position: float = 0.5
+    volume_zscore: float = 0
+    mtf_bias: str = "mixed"
+    mtf_alignment_score: int = 0
+    mtf_trends: dict[str, str] = {}
+    liquidation_imbalance: float = 0
+    liquidation_spike: bool = False
     indicators: IndicatorSnapshot
     detections: DetectionSnapshot
     reasoning_th: str
@@ -131,6 +171,14 @@ class DerivativesMetrics(BaseModel):
     taker_buy_sell_ratio: float = 1
     taker_buy_volume_ratio: float = 0.5
     bid_ask_imbalance: float = 0
+    depth_bid_qty: float = 0
+    depth_ask_qty: float = 0
+    depth_wall_side: str = "neutral"
+    depth_wall_price: float | None = None
+    liquidation_buy_qty: float = 0
+    liquidation_sell_qty: float = 0
+    liquidation_imbalance: float = 0
+    liquidation_spike: bool = False
     smart_money_note: str = ""
 
 
@@ -144,7 +192,11 @@ class MarketDataRecord(BaseModel):
     long_short_ratio: float = 1
     taker_buy_sell_ratio: float = 1
     taker_buy_volume_ratio: float = 0.5
+    bid_ask_imbalance: float = 0
+    liquidation_imbalance: float = 0
+    mtf_alignment_score: int = 0
     detections: dict[str, bool] = {}
+    market_context: dict[str, float | int | str | bool | None | dict[str, str]] = {}
     source: str = "collector"
 
 

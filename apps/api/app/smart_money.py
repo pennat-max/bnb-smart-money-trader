@@ -46,6 +46,17 @@ def detect_smart_money(snapshot: MarketSnapshot) -> DetectionSnapshot:
     displacement = body > average_body * 1.6 and volume > average_volume * 1.2
     bullish_order_block = displacement and close > open_price and any(row[3] < row[0] for row in candles[-6:-1])
     bearish_order_block = displacement and close < open_price and any(row[3] > row[0] for row in candles[-6:-1])
+    previous_close = candles[-2][3]
+    vwap_reclaim = previous_close < snapshot.vwap < close if snapshot.vwap else False
+    vwap_rejection = previous_close > snapshot.vwap > close if snapshot.vwap else False
+    premium_zone = snapshot.session_position > 0.72
+    discount_zone = snapshot.session_position < 0.28
+    bullish_mtf_alignment = snapshot.mtf_bias == "bullish" and snapshot.mtf_alignment_score >= 2
+    bearish_mtf_alignment = snapshot.mtf_bias == "bearish" and snapshot.mtf_alignment_score <= -2
+    liquidation_long_flush = snapshot.liquidation_spike and snapshot.liquidation_imbalance < -0.35
+    liquidation_short_flush = snapshot.liquidation_spike and snapshot.liquidation_imbalance > 0.35
+    bid_wall = snapshot.bid_ask_imbalance > 0.12 or snapshot.depth_wall_side == "bid"
+    ask_wall = snapshot.bid_ask_imbalance < -0.12 or snapshot.depth_wall_side == "ask"
 
     return DetectionSnapshot(
         liquidity_sweep=liquidity_sweep,
@@ -67,4 +78,14 @@ def detect_smart_money(snapshot: MarketSnapshot) -> DetectionSnapshot:
         bearish_fvg=bearish_fvg,
         bullish_order_block=bullish_order_block,
         bearish_order_block=bearish_order_block,
+        vwap_reclaim=vwap_reclaim,
+        vwap_rejection=vwap_rejection,
+        premium_zone=premium_zone,
+        discount_zone=discount_zone,
+        bullish_mtf_alignment=bullish_mtf_alignment,
+        bearish_mtf_alignment=bearish_mtf_alignment,
+        liquidation_long_flush=liquidation_long_flush,
+        liquidation_short_flush=liquidation_short_flush,
+        bid_wall=bid_wall,
+        ask_wall=ask_wall,
     )

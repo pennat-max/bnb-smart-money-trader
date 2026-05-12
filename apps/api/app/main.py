@@ -218,6 +218,12 @@ async def derivatives(symbol: str = Query(default="BNBUSDT"), period: str = Quer
         note_parts.append("bid wall imbalance")
     elif imbalance < -0.12:
         note_parts.append("ask wall imbalance")
+    if context["liquidation_spike"]:
+        note_parts.append("liquidation spike")
+    if float(context["liquidation_imbalance"]) > 0.35:
+        note_parts.append("short liquidation pressure")
+    elif float(context["liquidation_imbalance"]) < -0.35:
+        note_parts.append("long liquidation pressure")
 
     return DerivativesMetrics(
         symbol=symbol,
@@ -230,6 +236,14 @@ async def derivatives(symbol: str = Query(default="BNBUSDT"), period: str = Quer
         taker_buy_sell_ratio=taker_ratio,
         taker_buy_volume_ratio=float(context["taker_buy_volume_ratio"]),
         bid_ask_imbalance=imbalance,
+        depth_bid_qty=float(context["depth_bid_qty"]),
+        depth_ask_qty=float(context["depth_ask_qty"]),
+        depth_wall_side=str(context["depth_wall_side"]),
+        depth_wall_price=context["depth_wall_price"],
+        liquidation_buy_qty=float(context["liquidation_buy_qty"]),
+        liquidation_sell_qty=float(context["liquidation_sell_qty"]),
+        liquidation_imbalance=float(context["liquidation_imbalance"]),
+        liquidation_spike=bool(context["liquidation_spike"]),
         smart_money_note=", ".join(note_parts) if note_parts else "no strong derivatives imbalance",
     )
 

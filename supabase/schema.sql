@@ -106,9 +106,19 @@ create table if not exists public.market_snapshots (
   long_short_ratio numeric not null default 1,
   taker_buy_sell_ratio numeric not null default 1,
   taker_buy_volume_ratio numeric not null default 0.5,
+  bid_ask_imbalance numeric not null default 0,
+  liquidation_imbalance numeric not null default 0,
+  mtf_alignment_score integer not null default 0,
   detections jsonb not null default '{}'::jsonb,
+  market_context jsonb not null default '{}'::jsonb,
   source text not null default 'collector'
 );
+
+alter table public.market_snapshots
+  add column if not exists bid_ask_imbalance numeric not null default 0,
+  add column if not exists liquidation_imbalance numeric not null default 0,
+  add column if not exists mtf_alignment_score integer not null default 0,
+  add column if not exists market_context jsonb not null default '{}'::jsonb;
 
 create index if not exists market_snapshots_created_at_idx
   on public.market_snapshots (created_at desc);
