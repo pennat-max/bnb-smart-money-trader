@@ -1,9 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const backendUrl =
-  process.env.API_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  "https://bnb-smart-money-api-production.up.railway.app";
+const fallbackBackendUrl = "https://bnb-smart-money-api-production.up.railway.app";
+const backendUrl = resolveBackendUrl();
+
+function resolveBackendUrl() {
+  for (const rawValue of [process.env.API_URL, process.env.NEXT_PUBLIC_API_URL, fallbackBackendUrl]) {
+    const value = rawValue?.trim();
+    if (!value) continue;
+
+    try {
+      const url = new URL(value);
+      const isLocalhost = ["localhost", "127.0.0.1", "0.0.0.0"].includes(url.hostname);
+      if (process.env.VERCEL && isLocalhost) continue;
+      return url.origin;
+    } catch {
+      continue;
+    }
+  }
+
+  return fallbackBackendUrl;
+}
 
 export async function GET(request: NextRequest) {
   const upstream = new URL("/api/history", backendUrl);
