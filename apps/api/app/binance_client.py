@@ -308,8 +308,39 @@ class BinanceFuturesClient:
             pass
 
         context.update(await self.recent_liquidations(symbol))
+        if not context["data_ok"]:
+            await self._fill_testnet_public_context(symbol, context)
 
         return context
+
+    async def _fill_testnet_public_context(self, symbol: str, context: dict) -> None:
+        try:
+            context["open_interest"] = await self.open_interest(symbol)
+            context["data_ok"] = context["data_ok"] or context["open_interest"] > 0
+        except Exception:
+            pass
+
+        try:
+            payload = await self._get("/fapi/v1/depth", {"symbol": symbol, "limit": 50})
+            bids = [(float(row[0]), float(row[1])) for row in payload.get("bids", [])]
+            asks = [(float(row[0]), float(row[1])) for row in payload.get("asks", [])]
+            bid_qty = sum(row[1] for row in bids)
+            ask_qty = sum(row[1] for row in asks)
+            total_qty = bid_qty + ask_qty
+            strongest_bid = max(bids, key=lambda row: row[1], default=(0, 0))
+            strongest_ask = max(asks, key=lambda row: row[1], default=(0, 0))
+            context["bid_ask_imbalance"] = ((bid_qty - ask_qty) / total_qty) if total_qty else 0
+            context["depth_bid_qty"] = bid_qty
+            context["depth_ask_qty"] = ask_qty
+            if strongest_bid[1] > strongest_ask[1] * 1.35:
+                context["depth_wall_side"] = "bid"
+                context["depth_wall_price"] = strongest_bid[0]
+            elif strongest_ask[1] > strongest_bid[1] * 1.35:
+                context["depth_wall_side"] = "ask"
+                context["depth_wall_price"] = strongest_ask[0]
+            context["data_ok"] = context["data_ok"] or total_qty > 0
+        except Exception:
+            pass
 
     async def derivatives_history(self, symbol: str, period: str = "15m", limit: int = 500) -> list[dict]:
         rows: dict[int, dict] = {}

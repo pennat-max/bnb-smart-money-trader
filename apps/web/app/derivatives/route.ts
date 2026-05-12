@@ -79,12 +79,15 @@ async function fetchBinanceDerivatives(symbol: string, period: string) {
   const sellVol = Number(latestTaker.sellVol ?? 0);
   const bidQty = (depth.bids ?? []).reduce((sum: number, row: string[]) => sum + Number(row[1] ?? 0), 0);
   const askQty = (depth.asks ?? []).reduce((sum: number, row: string[]) => sum + Number(row[1] ?? 0), 0);
+  const strongestBid = strongestLevel(depth.bids ?? []);
+  const strongestAsk = strongestLevel(depth.asks ?? []);
   const totalDepth = bidQty + askQty;
   const takerTotal = buyVol + sellVol;
   const openInterestChangePct = previousOi ? ((latestOi - previousOi) / previousOi) * 100 : 0;
   const longShortRatio = Number(latestRatio.longShortRatio ?? 1);
   const takerBuySellRatio = Number(latestTaker.buySellRatio ?? 1);
   const bidAskImbalance = totalDepth ? (bidQty - askQty) / totalDepth : 0;
+  const wall = depthWall(strongestBid, strongestAsk);
   const hasProductionData = Boolean(oiRows.length || ratioRows.length || takerRows.length || totalDepth);
 
   if (!hasProductionData) {
@@ -113,6 +116,14 @@ async function fetchBinanceDerivatives(symbol: string, period: string) {
     taker_buy_sell_ratio: takerBuySellRatio,
     taker_buy_volume_ratio: takerTotal ? buyVol / takerTotal : 0.5,
     bid_ask_imbalance: bidAskImbalance,
+    depth_bid_qty: bidQty,
+    depth_ask_qty: askQty,
+    depth_wall_side: wall.side,
+    depth_wall_price: wall.price,
+    liquidation_buy_qty: 0,
+    liquidation_sell_qty: 0,
+    liquidation_imbalance: 0,
+    liquidation_spike: false,
     smart_money_note: noteParts.length ? noteParts.join(", ") : "no strong derivatives imbalance"
   };
 }
@@ -130,8 +141,11 @@ async function fetchBinanceTestnetDerivatives(symbol: string, period: string) {
   const depth = depthResponse.ok ? await depthResponse.json() : { bids: [], asks: [] };
   const bidQty = (depth.bids ?? []).reduce((sum: number, row: string[]) => sum + Number(row[1] ?? 0), 0);
   const askQty = (depth.asks ?? []).reduce((sum: number, row: string[]) => sum + Number(row[1] ?? 0), 0);
+  const strongestBid = strongestLevel(depth.bids ?? []);
+  const strongestAsk = strongestLevel(depth.asks ?? []);
   const totalDepth = bidQty + askQty;
   const bidAskImbalance = totalDepth ? (bidQty - askQty) / totalDepth : 0;
+  const wall = depthWall(strongestBid, strongestAsk);
   const fundingRate = Number(premium.lastFundingRate ?? 0);
   const noteParts = [];
 
@@ -153,8 +167,33 @@ async function fetchBinanceTestnetDerivatives(symbol: string, period: string) {
     taker_buy_sell_ratio: 1,
     taker_buy_volume_ratio: 0.5,
     bid_ask_imbalance: bidAskImbalance,
+    depth_bid_qty: bidQty,
+    depth_ask_qty: askQty,
+    depth_wall_side: wall.side,
+    depth_wall_price: wall.price,
+    liquidation_buy_qty: 0,
+    liquidation_sell_qty: 0,
+    liquidation_imbalance: 0,
+    liquidation_spike: false,
     smart_money_note: noteParts.length
       ? `${noteParts.join(", ")}; production sentiment endpoints unavailable from this cloud`
       : "production sentiment endpoints unavailable from this cloud"
   };
+}
+
+function strongestLevel(levels: string[][]) {
+  return levels.reduce(
+    (best, row) => {
+      const price = Number(row[0] ?? 0);
+      const qty = Number(row[1] ?? 0);
+      return qty > best.qty ? { price, qty } : best;
+    },
+    { price: 0, qty: 0 }
+  );
+}
+
+function depthWall(bid: { price: number; qty: number }, ask: { price: number; qty: number }) {
+  if (bid.qty > ask.qty * 1.35) return { side: "bid", price: bid.price };
+  if (ask.qty > bid.qty * 1.35) return { side: "ask", price: ask.price };
+  return { side: "neutral", price: null };
 }
