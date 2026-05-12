@@ -68,12 +68,12 @@ export default function Dashboard() {
   async function refresh() {
     try {
       setError(null);
-      const response = await fetch(`${apiUrl}/market/snapshot?daily_pnl_pct=${dailyPnl}`);
+      const response = await fetch(`${apiUrl}/live?daily_pnl_pct=${dailyPnl}`);
       if (!response.ok) throw new Error("API signal request failed");
       const data = (await response.json()) as SignalResponse;
       setSignal(data);
 
-      const historyResponse = await fetch(`${apiUrl}/market/history?limit=12`);
+      const historyResponse = await fetch(`${apiUrl}/journal?limit=12`);
       if (historyResponse.ok) {
         const historyData = await historyResponse.json();
         setHistory(historyData.items ?? []);
