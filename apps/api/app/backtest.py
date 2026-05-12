@@ -67,7 +67,8 @@ def run_backtest(candles: list[dict], settings: Settings, request: BacktestReque
     if request.optimize_for_win_rate:
         results = [run_backtest_profile(candles, settings, request, profile) for profile in WIN_RATE_PROFILES]
         eligible = [result for result in results if result.trades >= request.min_trades]
-        candidates = eligible or results
+        profitable_eligible = [result for result in eligible if result.total_pnl_pct >= 0]
+        candidates = profitable_eligible or eligible or results
         best = sorted(
             candidates,
             key=lambda result: (
@@ -89,8 +90,8 @@ def run_backtest(candles: list[dict], settings: Settings, request: BacktestReque
             for result in sorted(results, key=lambda item: item.win_rate, reverse=True)[:6]
         ]
         best.optimizer_note = (
-            f"Optimizer selected {best.profile} for highest win rate with min {request.min_trades} trades. "
-            "Higher win rate can reduce profit per trade, so still compare PnL and drawdown."
+            f"Optimizer selected {best.profile} for highest usable win rate with min {request.min_trades} trades. "
+            "Profiles with higher win rate but negative PnL are shown below, but not selected."
         )
         return best
 
