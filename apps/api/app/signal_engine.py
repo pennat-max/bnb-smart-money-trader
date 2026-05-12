@@ -96,11 +96,11 @@ def generate_signal(
         suggestion = TradeSuggestion()
 
     pattern_text = _pattern_text(detections)
-    thai_trend = "ขาขึ้น" if bullish_trend else "ขาลง" if bearish_trend else "ยังไม่ชัด"
+    thai_trend = "\u0e02\u0e32\u0e02\u0e36\u0e49\u0e19" if bullish_trend else "\u0e02\u0e32\u0e25\u0e07" if bearish_trend else "\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e0a\u0e31\u0e14"
     reasoning_th = (
-        f"BNB ตอนนี้เป็น {signal}. EMA/MACD ให้ภาพ {thai_trend}; "
+        f"BNB \u0e15\u0e2d\u0e19\u0e19\u0e35\u0e49\u0e40\u0e1b\u0e47\u0e19 {signal}. EMA/MACD \u0e43\u0e2b\u0e49\u0e20\u0e32\u0e1e {thai_trend}; "
         f"RSI {indicators.rsi:.1f}. {pattern_text} Funding {snapshot.funding_rate:.4%}, OI {snapshot.open_interest:.0f}. "
-        "ระบบยังเป็น signal-only ไม่มีการส่งออเดอร์จริง."
+        "\u0e23\u0e30\u0e1a\u0e1a\u0e22\u0e31\u0e07\u0e40\u0e1b\u0e47\u0e19 signal-only \u0e44\u0e21\u0e48\u0e21\u0e35\u0e01\u0e32\u0e23\u0e2a\u0e48\u0e07\u0e2d\u0e2d\u0e40\u0e14\u0e2d\u0e23\u0e4c\u0e08\u0e23\u0e34\u0e07."
     )
     reasoning_en = (
         f"Signal is {signal}. Trend is {'bullish' if bullish_trend else 'bearish' if bearish_trend else 'mixed'} "
@@ -176,14 +176,14 @@ def _pattern_text(detections: DetectionSnapshot) -> str:
         names.append("bullish order block")
     if detections.bearish_order_block:
         names.append("bearish order block")
-    return "เจอ " + ", ".join(names) + "." if names else "ยังไม่เจอ smart money trap ชัดเจน."
+    return "\u0e40\u0e08\u0e2d " + ", ".join(names) + "." if names else "\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e40\u0e08\u0e2d smart money trap \u0e0a\u0e31\u0e14\u0e40\u0e08\u0e19."
 
 
 def _personality_log(signal: str, confidence: int, risk_score: int, detections: DetectionSnapshot) -> str:
     if signal == "CANCEL":
-        return "BNB bot: ใจเย็นก่อนนะ สัญญาณมีแววแต่ risk rule ไม่ให้ผ่าน."
+        return "BNB bot: \u0e43\u0e08\u0e40\u0e22\u0e47\u0e19\u0e01\u0e48\u0e2d\u0e19\u0e19\u0e30 \u0e2a\u0e31\u0e0d\u0e0d\u0e32\u0e13\u0e21\u0e35\u0e41\u0e27\u0e27\u0e41\u0e15\u0e48 risk rule \u0e44\u0e21\u0e48\u0e43\u0e2b\u0e49\u0e1c\u0e48\u0e32\u0e19."
     if signal == "WAIT":
-        return "BNB bot: ตลาดยังไม่นิ่งพอ รอให้ smart money เผยมือชัดกว่านี้."
+        return "BNB bot: \u0e15\u0e25\u0e32\u0e14\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e19\u0e34\u0e48\u0e07\u0e1e\u0e2d \u0e23\u0e2d\u0e43\u0e2b\u0e49 smart money \u0e40\u0e1c\u0e22\u0e21\u0e37\u0e2d\u0e0a\u0e31\u0e14\u0e01\u0e27\u0e48\u0e32\u0e19\u0e35\u0e49."
     if detections.trapped_longs or detections.trapped_shorts:
-        return f"BNB bot: เห็น trap แล้ว {signal} ได้ แต่คุม risk score {risk_score} ให้แน่น."
-    return f"BNB bot: {signal} bias พร้อม confidence {confidence} แต่ยังเป็นแค่ signal-only."
+        return f"BNB bot: \u0e40\u0e2b\u0e47\u0e19 trap \u0e41\u0e25\u0e49\u0e27 {signal} \u0e44\u0e14\u0e49 \u0e41\u0e15\u0e48\u0e04\u0e38\u0e21 risk score {risk_score} \u0e43\u0e2b\u0e49\u0e41\u0e19\u0e48\u0e19."
+    return f"BNB bot: {signal} bias \u0e1e\u0e23\u0e49\u0e2d\u0e21 confidence {confidence} \u0e41\u0e15\u0e48\u0e22\u0e31\u0e07\u0e40\u0e1b\u0e47\u0e19\u0e41\u0e04\u0e48 signal-only."
