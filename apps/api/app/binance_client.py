@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+import time
+
 import httpx
 
 from .config import Settings
@@ -42,6 +45,40 @@ class BinanceFuturesClient:
             "/fapi/v1/klines",
             {"symbol": symbol, "interval": interval, "limit": max(120, min(limit, 1500))},
         )
+        return self._format_klines(payload)
+
+    async def raw_klines_for_days(self, symbol: str, interval: str = "15m", days: int = 7) -> list[dict]:
+        interval_ms = interval_to_ms(interval)
+        end_time = int(time.time() * 1000)
+        start_time = end_time - days * 24 * 60 * 60 * 1000
+        candles: list[dict] = []
+        cursor = start_time
+
+        while cursor < end_time:
+            payload = await self._get(
+                "/fapi/v1/klines",
+                {
+                    "symbol": symbol,
+                    "interval": interval,
+                    "limit": 1500,
+                    "startTime": cursor,
+                    "endTime": end_time,
+                },
+            )
+            batch = self._format_klines(payload)
+            if not batch:
+                break
+            candles.extend(batch)
+            next_cursor = batch[-1]["close_time"] + 1
+            if next_cursor <= cursor:
+                break
+            cursor = next_cursor
+            await asyncio.sleep(0.05)
+
+        unique = {candle["open_time"]: candle for candle in candles}
+        return [unique[key] for key in sorted(unique)]
+
+    def _format_klines(self, payload: list) -> list[dict]:
         return [
             {
                 "open_time": int(row[0]),
@@ -77,3 +114,11 @@ class BinanceFuturesClient:
             open_interest=open_interest,
             candles=candles,
         )
+
+
+def interval_to_ms(interval: str) -> int:
+    units = {"m": 60_000, "h": 3_600_000, "d": 86_400_000}
+    unit = interval[-1]
+    if unit not in units:
+        raise ValueError(f"Unsupported interval: {interval}")
+    return int(interval[:-1]) * units[unit]

@@ -23,7 +23,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -282,7 +283,8 @@ h1 {
   margin-bottom: 12px;
 }
 
-.pnlControl input {
+.pnlControl input,
+.pnlControl select {
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: 8px;

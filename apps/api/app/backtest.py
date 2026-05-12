@@ -89,6 +89,8 @@ def run_backtest(candles: list[dict], settings: Settings, request: BacktestReque
     return BacktestResult(
         symbol=request.symbol,
         interval=request.interval,
+        period_days=request.period_days,
+        candles_tested=len(candles),
         trades=len(trades),
         wins=wins,
         losses=losses,

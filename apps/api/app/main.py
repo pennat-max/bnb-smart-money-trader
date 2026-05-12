@@ -170,7 +170,7 @@ async def history(limit: int = Query(default=25, ge=1, le=100)):
 async def backtest(request: BacktestRequest):
     settings = get_settings()
     client = BinanceFuturesClient(settings)
-    candles = await client.raw_klines(request.symbol, interval=request.interval, limit=request.limit)
+    candles = await client.raw_klines_for_days(request.symbol, interval=request.interval, days=request.period_days)
     return run_backtest(candles, settings, request)
 
 

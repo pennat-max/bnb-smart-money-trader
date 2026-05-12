@@ -98,7 +98,8 @@ class RuntimeStatus(BaseModel):
 
 class BacktestRequest(BaseModel):
     symbol: str = "BNBUSDT"
-    interval: str = "1m"
+    interval: Literal["1m", "5m", "15m", "1h"] = "15m"
+    period_days: int = Field(default=7, ge=1, le=30)
     limit: int = Field(default=500, ge=150, le=1500)
     lookahead_candles: int = Field(default=30, ge=3, le=240)
     starting_balance: float = Field(default=1000, gt=0)
@@ -121,6 +122,8 @@ class BacktestTrade(BaseModel):
 class BacktestResult(BaseModel):
     symbol: str
     interval: str
+    period_days: int
+    candles_tested: int
     trades: int
     wins: int
     losses: int

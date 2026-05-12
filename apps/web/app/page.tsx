@@ -74,6 +74,9 @@ type RuntimeStatus = {
 };
 
 type BacktestResult = {
+  interval: string;
+  period_days: number;
+  candles_tested: number;
   trades: number;
   wins: number;
   losses: number;
@@ -133,6 +136,8 @@ export default function Dashboard() {
   const [orderPreview, setOrderPreview] = useState<string>("No testnet preview yet.");
   const [alertPreview, setAlertPreview] = useState<string>("LINE alert is optional and off until env vars are configured.");
   const [backtestLimit, setBacktestLimit] = useState(500);
+  const [backtestDays, setBacktestDays] = useState(7);
+  const [backtestInterval, setBacktestInterval] = useState<"1m" | "5m" | "15m" | "1h">("15m");
   const [paperEnabled, setPaperEnabled] = useState(false);
   const [paperBalance, setPaperBalance] = useState(1000);
   const [paperRisk, setPaperRisk] = useState(1);
@@ -212,12 +217,13 @@ export default function Dashboard() {
   async function runBacktest() {
     setBacktestRunning(true);
     setBacktestStartedAt(new Date().toISOString());
-    setBacktestStatus(`Running backtest on ${backtestLimit} candles...`);
+    setBacktestStatus(`Running backtest for ${backtestDays} days on ${backtestInterval} candles...`);
     try {
       const response = await fetch(`${apiUrl}/backtest`, {
         body: JSON.stringify({
           symbol: "BNBUSDT",
-          interval: "1m",
+          interval: backtestInterval,
+          period_days: backtestDays,
           limit: backtestLimit,
           lookahead_candles: 30,
           starting_balance: paperBalance
@@ -231,7 +237,7 @@ export default function Dashboard() {
       }
       const payload = (await response.json()) as BacktestResult;
       setBacktestResult(payload);
-      setBacktestStatus(`Done: ${payload.trades} trades, ${payload.win_rate}% win rate.`);
+      setBacktestStatus(`Done: ${payload.candles_tested} candles, ${payload.trades} trades, ${payload.win_rate}% win rate.`);
     } catch {
       setBacktestStatus("Backtest failed. Network or backend error.");
     } finally {
@@ -426,7 +432,25 @@ export default function Dashboard() {
             <History size={18} />
           </div>
           <label className="pnlControl">
-            Candle Limit
+            Period
+            <select value={backtestDays} onChange={(event) => setBacktestDays(Number(event.target.value))}>
+              <option value={1}>1 day</option>
+              <option value={7}>7 days</option>
+              <option value={14}>14 days</option>
+              <option value={30}>30 days</option>
+            </select>
+          </label>
+          <label className="pnlControl">
+            Timeframe
+            <select value={backtestInterval} onChange={(event) => setBacktestInterval(event.target.value as "1m" | "5m" | "15m" | "1h")}>
+              <option value="1m">1m</option>
+              <option value="5m">5m</option>
+              <option value="15m">15m</option>
+              <option value="1h">1h</option>
+            </select>
+          </label>
+          <label className="pnlControl">
+            Candle Limit (legacy)
             <input
               max="1500"
               min="150"
@@ -451,6 +475,8 @@ export default function Dashboard() {
               <Field label="Win Rate" value={`${backtestResult.win_rate}%`} />
               <Field label="PnL" value={`${backtestResult.total_pnl_pct}%`} />
               <Field label="Max DD" value={`${backtestResult.max_drawdown_pct}%`} />
+              <Field label="Candles" value={`${backtestResult.candles_tested}`} />
+              <Field label="Range" value={`${backtestResult.period_days}d / ${backtestResult.interval}`} />
             </div>
           ) : (
             <p className="empty">Run historical test before trusting any setup.</p>
