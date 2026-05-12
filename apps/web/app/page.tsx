@@ -137,6 +137,9 @@ export default function Dashboard() {
   const [paperBalance, setPaperBalance] = useState(1000);
   const [paperRisk, setPaperRisk] = useState(1);
   const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
+  const [backtestRunning, setBacktestRunning] = useState(false);
+  const [backtestStartedAt, setBacktestStartedAt] = useState<string | null>(null);
+  const [backtestStatus, setBacktestStatus] = useState("Backtest is idle.");
   const [learningSummary, setLearningSummary] = useState<LearningSummary | null>(null);
   const [paperStatus, setPaperStatus] = useState("Paper trading is off.");
   const [paperMonitor, setPaperMonitor] = useState<PaperRunResponse | null>(null);
@@ -207,22 +210,33 @@ export default function Dashboard() {
   }
 
   async function runBacktest() {
-    const response = await fetch(`${apiUrl}/backtest`, {
-      body: JSON.stringify({
-        symbol: "BNBUSDT",
-        interval: "1m",
-        limit: backtestLimit,
-        lookahead_candles: 30,
-        starting_balance: paperBalance
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST"
-    });
-    if (!response.ok) {
-      setPaperStatus("Backtest failed. Backend is not ready.");
-      return;
+    setBacktestRunning(true);
+    setBacktestStartedAt(new Date().toISOString());
+    setBacktestStatus(`Running backtest on ${backtestLimit} candles...`);
+    try {
+      const response = await fetch(`${apiUrl}/backtest`, {
+        body: JSON.stringify({
+          symbol: "BNBUSDT",
+          interval: "1m",
+          limit: backtestLimit,
+          lookahead_candles: 30,
+          starting_balance: paperBalance
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST"
+      });
+      if (!response.ok) {
+        setBacktestStatus("Backtest failed. Backend is not ready.");
+        return;
+      }
+      const payload = (await response.json()) as BacktestResult;
+      setBacktestResult(payload);
+      setBacktestStatus(`Done: ${payload.trades} trades, ${payload.win_rate}% win rate.`);
+    } catch {
+      setBacktestStatus("Backtest failed. Network or backend error.");
+    } finally {
+      setBacktestRunning(false);
     }
-    setBacktestResult((await response.json()) as BacktestResult);
   }
 
   async function runPaperOnce() {
@@ -422,10 +436,15 @@ export default function Dashboard() {
               onChange={(event) => setBacktestLimit(Number(event.target.value))}
             />
           </label>
-          <button className="wideButton" onClick={runBacktest}>
-            <Play size={16} />
-            Run Backtest
+          <button className="wideButton" onClick={runBacktest} disabled={backtestRunning}>
+            {backtestRunning ? <Activity size={16} className="spinIcon" /> : <Play size={16} />}
+            {backtestRunning ? "Running..." : "Run Backtest"}
           </button>
+          <div className="monitorBox">
+            <div>Status: {backtestStatus}</div>
+            <div>Started: {backtestStartedAt ? new Date(backtestStartedAt).toLocaleString() : "not started"}</div>
+            <div>Mode: historical simulation only, no real orders</div>
+          </div>
           {backtestResult ? (
             <div className="resultGrid">
               <Field label="Trades" value={`${backtestResult.trades}`} />
