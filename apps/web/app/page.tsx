@@ -217,7 +217,7 @@ export default function Dashboard() {
             <Brain size={18} />
           </div>
           <p className="personality">{signal?.personality_log ?? "BNB bot is booting..."}</p>
-          <p className="saveState">Journal: {signal?.journal_saved ? "saved to Supabase" : "local response only"}</p>
+          <p className="saveState">Journal: {signal?.journal_saved ? "saved to journal" : "local response only"}</p>
         </div>
       </section>
     </main>
