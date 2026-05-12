@@ -104,6 +104,7 @@ class BacktestRequest(BaseModel):
     lookahead_candles: int = Field(default=30, ge=3, le=240)
     starting_balance: float = Field(default=1000, gt=0)
     optimize_for_win_rate: bool = True
+    smart_money_priority: bool = True
     min_trades: int = Field(default=10, ge=1, le=500)
 
 

@@ -94,6 +94,7 @@ type BacktestResult = {
     win_rate: number;
     pnl: number;
     max_dd: number;
+    smart_money: string;
   }>;
 };
 
@@ -148,6 +149,7 @@ export default function Dashboard() {
   const [backtestDays, setBacktestDays] = useState(7);
   const [backtestInterval, setBacktestInterval] = useState<"1m" | "5m" | "15m" | "1h">("15m");
   const [optimizeWinRate, setOptimizeWinRate] = useState(true);
+  const [smartMoneyPriority, setSmartMoneyPriority] = useState(true);
   const [minBacktestTrades, setMinBacktestTrades] = useState(10);
   const [paperEnabled, setPaperEnabled] = useState(false);
   const [paperBalance, setPaperBalance] = useState(1000);
@@ -239,6 +241,7 @@ export default function Dashboard() {
           lookahead_candles: 30,
           starting_balance: paperBalance,
           optimize_for_win_rate: optimizeWinRate,
+          smart_money_priority: smartMoneyPriority,
           min_trades: minBacktestTrades
         }),
         headers: { "content-type": "application/json" },
@@ -477,6 +480,10 @@ export default function Dashboard() {
             <input type="checkbox" checked={optimizeWinRate} onChange={(event) => setOptimizeWinRate(event.target.checked)} />
             Optimize for highest win rate
           </label>
+          <label className="toggleRow">
+            <input type="checkbox" checked={smartMoneyPriority} onChange={(event) => setSmartMoneyPriority(event.target.checked)} />
+            Smart money priority
+          </label>
           <label className="pnlControl">
             Min Trades
             <input
@@ -505,7 +512,7 @@ export default function Dashboard() {
               <Field label="Candles" value={`${backtestResult.candles_tested}`} />
               <Field label="Range" value={`${backtestResult.period_days}d / ${backtestResult.interval}`} />
               <Field label="Profile" value={backtestResult.profile} />
-              <Field label="Optimizer" value={optimizeWinRate ? "on" : "off"} />
+              <Field label="Optimizer" value={smartMoneyPriority ? "smart money" : optimizeWinRate ? "win rate" : "off"} />
             </div>
           ) : (
             <p className="empty">Run historical test before trusting any setup.</p>
@@ -517,7 +524,10 @@ export default function Dashboard() {
               {backtestResult?.tested_profiles.map((profile) => (
                 <div className="profileItem" key={profile.profile}>
                   <strong>{profile.profile}</strong>
-                  <span>{profile.win_rate}% WR / {profile.trades} trades / {profile.pnl}% PnL</span>
+                  <span>
+                    {profile.smart_money === "yes" ? "SM / " : ""}
+                    {profile.win_rate}% WR / {profile.trades} trades / {profile.pnl}% PnL
+                  </span>
                 </div>
               ))}
             </div>

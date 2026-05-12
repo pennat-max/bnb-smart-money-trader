@@ -15,6 +15,7 @@ class BacktestProfile:
     require_smart_money: bool = False
     require_trap: bool = False
     require_trend_stack: bool = False
+    smart_priority: bool = False
     take_profit_multiplier: float = 1.8
     stop_loss_multiplier: float = 1.0
 
@@ -32,14 +33,19 @@ WIN_RATE_PROFILES = [
     BacktestProfile(name="scalp_80", min_confidence=80, take_profit_multiplier=0.35, stop_loss_multiplier=1.5),
     BacktestProfile(name="micro_tp_75", min_confidence=75, take_profit_multiplier=0.25, stop_loss_multiplier=1.8),
     BacktestProfile(name="micro_tp_80", min_confidence=80, take_profit_multiplier=0.25, stop_loss_multiplier=2.0),
-    BacktestProfile(name="smart_money_75", min_confidence=75, require_smart_money=True, take_profit_multiplier=1.0),
-    BacktestProfile(name="smart_money_80", min_confidence=80, require_smart_money=True, take_profit_multiplier=0.8),
-    BacktestProfile(name="smart_scalp_75", min_confidence=75, require_smart_money=True, take_profit_multiplier=0.4, stop_loss_multiplier=1.5),
-    BacktestProfile(name="smart_scalp_80", min_confidence=80, require_smart_money=True, take_profit_multiplier=0.3, stop_loss_multiplier=1.8),
-    BacktestProfile(name="trap_only_70", min_confidence=70, require_trap=True, take_profit_multiplier=0.9),
-    BacktestProfile(name="trap_only_75", min_confidence=75, require_trap=True, take_profit_multiplier=0.8),
-    BacktestProfile(name="trap_scalp_70", min_confidence=70, require_trap=True, take_profit_multiplier=0.35, stop_loss_multiplier=1.6),
-    BacktestProfile(name="trap_scalp_75", min_confidence=75, require_trap=True, take_profit_multiplier=0.3, stop_loss_multiplier=1.8),
+    BacktestProfile(name="smart_money_70", min_confidence=70, require_smart_money=True, smart_priority=True, take_profit_multiplier=0.9),
+    BacktestProfile(name="smart_money_75", min_confidence=75, require_smart_money=True, smart_priority=True, take_profit_multiplier=1.0),
+    BacktestProfile(name="smart_money_80", min_confidence=80, require_smart_money=True, smart_priority=True, take_profit_multiplier=0.8),
+    BacktestProfile(name="smart_scalp_70", min_confidence=70, require_smart_money=True, smart_priority=True, take_profit_multiplier=0.45, stop_loss_multiplier=1.35),
+    BacktestProfile(name="smart_scalp_75", min_confidence=75, require_smart_money=True, smart_priority=True, take_profit_multiplier=0.4, stop_loss_multiplier=1.5),
+    BacktestProfile(name="smart_scalp_80", min_confidence=80, require_smart_money=True, smart_priority=True, take_profit_multiplier=0.3, stop_loss_multiplier=1.8),
+    BacktestProfile(name="smart_micro_70", min_confidence=70, require_smart_money=True, smart_priority=True, take_profit_multiplier=0.25, stop_loss_multiplier=1.7),
+    BacktestProfile(name="smart_micro_75", min_confidence=75, require_smart_money=True, smart_priority=True, take_profit_multiplier=0.22, stop_loss_multiplier=1.9),
+    BacktestProfile(name="trap_only_70", min_confidence=70, require_trap=True, smart_priority=True, take_profit_multiplier=0.9),
+    BacktestProfile(name="trap_only_75", min_confidence=75, require_trap=True, smart_priority=True, take_profit_multiplier=0.8),
+    BacktestProfile(name="trap_scalp_70", min_confidence=70, require_trap=True, smart_priority=True, take_profit_multiplier=0.35, stop_loss_multiplier=1.6),
+    BacktestProfile(name="trap_scalp_75", min_confidence=75, require_trap=True, smart_priority=True, take_profit_multiplier=0.3, stop_loss_multiplier=1.8),
+    BacktestProfile(name="trap_micro_70", min_confidence=70, require_trap=True, smart_priority=True, take_profit_multiplier=0.22, stop_loss_multiplier=2.0),
     BacktestProfile(name="trend_stack_75", min_confidence=75, require_trend_stack=True, take_profit_multiplier=1.0),
     BacktestProfile(name="trend_stack_80", min_confidence=80, require_trend_stack=True, take_profit_multiplier=0.8),
     BacktestProfile(name="trend_scalp_75", min_confidence=75, require_trend_stack=True, take_profit_multiplier=0.4, stop_loss_multiplier=1.5),
@@ -48,6 +54,7 @@ WIN_RATE_PROFILES = [
         name="strict_smart_trend",
         min_confidence=78,
         require_smart_money=True,
+        smart_priority=True,
         require_trend_stack=True,
         take_profit_multiplier=0.75,
         stop_loss_multiplier=1.1,
@@ -56,6 +63,7 @@ WIN_RATE_PROFILES = [
         name="strict_micro_tp",
         min_confidence=78,
         require_smart_money=True,
+        smart_priority=True,
         require_trend_stack=True,
         take_profit_multiplier=0.25,
         stop_loss_multiplier=2.0,
@@ -67,8 +75,14 @@ def run_backtest(candles: list[dict], settings: Settings, request: BacktestReque
     if request.optimize_for_win_rate:
         results = [run_backtest_profile(candles, settings, request, profile) for profile in WIN_RATE_PROFILES]
         eligible = [result for result in results if result.trades >= request.min_trades]
+        profile_by_name = {profile.name: profile for profile in WIN_RATE_PROFILES}
+        smart_eligible = [result for result in eligible if profile_by_name[result.profile].smart_priority]
+        profitable_smart_eligible = [result for result in smart_eligible if result.total_pnl_pct >= 0]
         profitable_eligible = [result for result in eligible if result.total_pnl_pct >= 0]
-        candidates = profitable_eligible or eligible or results
+        if request.smart_money_priority:
+            candidates = profitable_smart_eligible or smart_eligible or profitable_eligible or eligible or results
+        else:
+            candidates = profitable_eligible or eligible or results
         best = sorted(
             candidates,
             key=lambda result: (
@@ -86,12 +100,21 @@ def run_backtest(candles: list[dict], settings: Settings, request: BacktestReque
                 "win_rate": result.win_rate,
                 "pnl": result.total_pnl_pct,
                 "max_dd": result.max_drawdown_pct,
+                "smart_money": "yes" if profile_by_name[result.profile].smart_priority else "no",
             }
-            for result in sorted(results, key=lambda item: item.win_rate, reverse=True)[:6]
+            for result in sorted(
+                results,
+                key=lambda item: (
+                    profile_by_name[item.profile].smart_priority,
+                    item.win_rate,
+                    item.total_pnl_pct,
+                ),
+                reverse=True,
+            )[:8]
         ]
         best.optimizer_note = (
-            f"Optimizer selected {best.profile} for highest usable win rate with min {request.min_trades} trades. "
-            "Profiles with higher win rate but negative PnL are shown below, but not selected."
+            f"Optimizer selected {best.profile} with smart money priority and min {request.min_trades} trades. "
+            "Smart-money profiles are preferred before generic profiles; still compare PnL and drawdown."
         )
         return best
 
