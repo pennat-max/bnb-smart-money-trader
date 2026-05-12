@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: bnb-smart-money-api
+    runtime: python
+    rootDir: apps/api
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_MODE
+        value: signal_only
+      - key: BINANCE_USE_TESTNET
+        value: "true"
+      - key: LOCAL_JOURNAL_PATH
+        value: /tmp/signals.jsonl
