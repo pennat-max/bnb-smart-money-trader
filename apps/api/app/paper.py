@@ -127,6 +127,18 @@ def open_paper_trade(settings: Settings, signal: SignalResponse, balance: float,
     return trade
 
 
+def paper_entry_block_reason(settings: Settings, signal: SignalResponse, has_active_trade: bool) -> str:
+    if has_active_trade:
+        return "มี paper position เปิดอยู่แล้ว ระบบจำกัดไว้ทีละ 1 BNB position."
+    if signal.signal not in {"LONG", "SHORT"}:
+        return f"ยังไม่เข้า เพราะ signal เป็น {signal.signal}; ระบบเข้าเฉพาะ LONG/SHORT เท่านั้น."
+    if signal.confidence < settings.risk_min_confidence:
+        return f"ยังไม่เข้า เพราะ confidence {signal.confidence}% ต่ำกว่า {settings.risk_min_confidence}%."
+    if not signal.suggestion.entry or not signal.suggestion.take_profit or not signal.suggestion.stop_loss:
+        return "ยังไม่เข้า เพราะ entry/TP/SL ยังไม่ครบ."
+    return "พร้อมเปิด paper position เมื่อ tick ถัดไป."
+
+
 def supabase_rest_headers(settings: Settings) -> dict[str, str] | None:
     key = settings.active_supabase_key
     if not settings.supabase_url or not key:

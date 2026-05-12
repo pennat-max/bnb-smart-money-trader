@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,7 +14,7 @@ from .journal import recent_signals, save_signal
 from .learning import summarize_learning
 from .line_alert import send_line_alert
 from .models import BacktestRequest, PaperRunRequest, PaperRunResponse, RuntimeStatus, TestnetOrderPreviewRequest
-from .paper import active_paper_trade, load_paper_trades, maybe_close_trade, open_paper_trade
+from .paper import active_paper_trade, load_paper_trades, maybe_close_trade, open_paper_trade, paper_entry_block_reason
 from .signal_engine import generate_signal
 
 settings = get_settings()
@@ -45,22 +46,29 @@ async def run_paper_cycle(request: PaperRunRequest) -> PaperRunResponse:
     existing = active_paper_trade(settings)
     closed = maybe_close_trade(settings, existing, signal_response.price) if existing else None
     active = active_paper_trade(settings)
+    block_reason = paper_entry_block_reason(settings, signal_response, active is not None)
     message = "Paper engine checked current market. No real order was sent."
 
     if request.enabled and active is None and closed is None:
         active = open_paper_trade(settings, signal_response, request.balance, request.risk_pct)
         if active:
             message = "Opened a paper-only simulated BNB position."
+            block_reason = "เปิด paper position แล้ว รอ TP/SL เพื่อปิดผล."
         elif signal_response.signal in {"LONG", "SHORT"}:
             message = "Signal found, but paper entry was blocked by risk rules."
     elif closed:
         message = f"Closed paper trade as {closed.outcome}."
+        block_reason = f"ปิด paper trade แล้วด้วยผล {closed.outcome}."
 
     learning_summary = summarize_learning([], load_paper_trades(settings, limit=500))
     return PaperRunResponse(
         ok=True,
         message=message,
         signal=signal_response.signal,
+        confidence=signal_response.confidence,
+        price=signal_response.price,
+        last_tick_at=datetime.now(timezone.utc),
+        entry_block_reason=block_reason,
         active_trade=active,
         closed_trade=closed,
         learning_summary=learning_summary,

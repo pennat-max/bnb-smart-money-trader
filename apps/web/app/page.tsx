@@ -99,6 +99,10 @@ type PaperRunResponse = {
   ok: boolean;
   message: string;
   signal: SignalType;
+  confidence: number;
+  price: number;
+  last_tick_at: string;
+  entry_block_reason: string;
   active_trade: {
     side: "LONG" | "SHORT";
     entry: number;
@@ -135,6 +139,7 @@ export default function Dashboard() {
   const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
   const [learningSummary, setLearningSummary] = useState<LearningSummary | null>(null);
   const [paperStatus, setPaperStatus] = useState("Paper trading is off.");
+  const [paperMonitor, setPaperMonitor] = useState<PaperRunResponse | null>(null);
 
   async function refresh() {
     try {
@@ -238,6 +243,7 @@ export default function Dashboard() {
     }
     const payload = (await response.json()) as PaperRunResponse;
     setPaperStatus(payload.message);
+    setPaperMonitor(payload);
     setLearningSummary(payload.learning_summary);
   }
 
@@ -457,6 +463,12 @@ export default function Dashboard() {
             Run Paper Tick
           </button>
           <p className="saveState">{paperStatus}</p>
+          <div className="monitorBox">
+            <div>Loop: {runtimeStatus?.paper_trading_enabled ? `auto every ${runtimeStatus.paper_trading_interval_seconds}s` : "manual"}</div>
+            <div>Last tick: {paperMonitor ? new Date(paperMonitor.last_tick_at).toLocaleString() : "waiting"}</div>
+            <div>Last signal: {paperMonitor ? `${paperMonitor.signal} / ${paperMonitor.confidence}%` : "--"}</div>
+            <div>{paperMonitor?.entry_block_reason ?? "Press Run Paper Tick to see why the bot is waiting."}</div>
+          </div>
         </div>
 
         <div className="panel learningPanel">

@@ -167,6 +167,10 @@ class PaperRunResponse(BaseModel):
     message: str
     mode: str = "paper_only"
     signal: SignalType
+    confidence: int
+    price: float
+    last_tick_at: datetime
+    entry_block_reason: str
     active_trade: PaperTradeRecord | None = None
     closed_trade: PaperTradeRecord | None = None
     learning_summary: dict[str, float | int | str]

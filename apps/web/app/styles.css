@@ -330,6 +330,19 @@ h1 {
   min-height: 100%;
 }
 
+.monitorBox {
+  background: #12181f;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  display: grid;
+  font-size: 13px;
+  gap: 8px;
+  line-height: 1.4;
+  margin-top: 12px;
+  padding: 12px;
+}
+
 .ruleList,
 .historyList,
 .setupTags {
