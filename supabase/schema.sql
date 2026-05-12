@@ -143,24 +143,47 @@ create policy "Allow market snapshot reads"
   using (true);
 
 create table if not exists public.candles (
+  id uuid default gen_random_uuid(),
   symbol text not null,
   timeframe text not null check (timeframe in ('1m', '5m', '15m', '1h')),
   open_time bigint not null,
+  close_time bigint,
   open numeric not null,
   high numeric not null,
   low numeric not null,
   close numeric not null,
   volume numeric not null,
+  quote_volume numeric,
+  trades_count integer,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   primary key (symbol, timeframe, open_time)
 );
+
+alter table public.candles
+  add column if not exists id uuid default gen_random_uuid(),
+  add column if not exists close_time bigint,
+  add column if not exists quote_volume numeric,
+  add column if not exists trades_count integer;
+
+update public.candles
+  set id = gen_random_uuid()
+  where id is null;
+
+alter table public.candles
+  alter column id set not null;
+
+create unique index if not exists candles_id_idx
+  on public.candles (id);
 
 create index if not exists candles_backtest_idx
   on public.candles (symbol, timeframe, open_time);
 
 create index if not exists candles_backtest_desc_idx
   on public.candles (symbol, timeframe, open_time desc);
+
+create index if not exists candles_symbol_timeframe_close_time_idx
+  on public.candles (symbol, timeframe, close_time);
 
 create or replace function public.set_candles_updated_at()
 returns trigger as $$

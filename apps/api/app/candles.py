@@ -21,11 +21,14 @@ def candle_record(symbol: str, timeframe: str, row: dict) -> dict:
         symbol=symbol.upper(),
         timeframe=cast(Literal["1m", "5m", "15m", "1h"], timeframe),
         open_time=int(row["open_time"]),
+        close_time=int(row["close_time"]) if row.get("close_time") is not None else None,
         open=float(row["open"]),
         high=float(row["high"]),
         low=float(row["low"]),
         close=float(row["close"]),
         volume=float(row["volume"]),
+        quote_volume=float(row["quote_volume"]) if row.get("quote_volume") is not None else None,
+        trades_count=int(row["trades_count"]) if row.get("trades_count") is not None else None,
     ).model_dump(mode="json")
 
 
@@ -60,6 +63,33 @@ def save_candles_supabase(settings: Settings, candles: list[dict], chunk_size: i
     except Exception:
         logger.exception("Supabase candle upsert failed")
         return saved
+
+
+def candle_status_supabase(settings: Settings, symbol: str, timeframe: str) -> tuple[int, dict | None, str | None]:
+    headers = supabase_rest_headers(settings)
+    url = supabase_candles_url(settings)
+    if headers is None or url is None:
+        return 0, None, "Supabase is not configured."
+
+    params = {
+        "symbol": f"eq.{symbol.upper()}",
+        "timeframe": f"eq.{timeframe}",
+        "select": "*",
+        "order": "open_time.desc",
+        "limit": "1",
+    }
+    try:
+        with httpx.Client(timeout=10) as client:
+            response = client.get(url, params=params, headers={**headers, "Prefer": "count=exact"})
+            response.raise_for_status()
+        content_range = response.headers.get("content-range", "")
+        count = parse_supabase_count(content_range)
+        rows = response.json()
+        latest = rows[0] if rows else None
+        return count, latest, None
+    except Exception as exc:
+        logger.exception("Supabase candle status fetch failed")
+        return 0, None, str(exc)
 
 
 async def backfill_candles(
@@ -135,3 +165,15 @@ async def initial_candle_backfill(settings: Settings, client: BinanceFuturesClie
 def validate_timeframe(timeframe: str) -> None:
     if timeframe not in SUPPORTED_TIMEFRAMES:
         raise ValueError(f"Unsupported candle timeframe: {timeframe}")
+
+
+def parse_supabase_count(content_range: str) -> int:
+    if "/" not in content_range:
+        return 0
+    _, total = content_range.rsplit("/", 1)
+    if total == "*":
+        return 0
+    try:
+        return int(total)
+    except ValueError:
+        return 0

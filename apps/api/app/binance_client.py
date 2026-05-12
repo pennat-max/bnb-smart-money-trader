@@ -157,6 +157,8 @@ class BinanceFuturesClient:
                 "close": float(row[4]),
                 "volume": float(row[5]),
                 "close_time": int(row[6]),
+                "quote_volume": float(row[7]),
+                "trades_count": int(row[8]),
             }
             for row in payload
         ]

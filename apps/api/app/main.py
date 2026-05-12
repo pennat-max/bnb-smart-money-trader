@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .ai_committee import configured_ai_providers, generate_ai_committee_report
 from .backtest import run_backtest
 from .binance_client import BinanceFuturesClient
-from .candles import backfill_candles, collect_all_recent_candles, initial_candle_backfill
+from .candles import backfill_candles, candle_status_supabase, collect_all_recent_candles, initial_candle_backfill
 from .collector import market_record_from_signal, save_market_data
 from .config import get_settings
 from .journal import recent_signals, save_signal
@@ -21,6 +21,8 @@ from .models import (
     BacktestRequest,
     CandleBackfillRequest,
     CandleBackfillResponse,
+    CandleRecord,
+    CandleStatusResponse,
     DerivativesMetrics,
     PaperRunRequest,
     PaperRunResponse,
@@ -326,6 +328,31 @@ async def candles_collect():
     client = BinanceFuturesClient(settings)
     results = await collect_all_recent_candles(settings, client)
     return {"ok": any(saved > 0 for saved in results.values()), "items": results}
+
+
+@app.get("/api/candles/status", response_model=CandleStatusResponse)
+async def candles_status(
+    symbol: str = Query(default="BNBUSDT"),
+    timeframe: str = Query(default="15m"),
+):
+    settings = get_settings()
+    try:
+        count, latest, error = candle_status_supabase(settings, symbol, timeframe)
+        latest_candle = CandleRecord.model_validate(latest) if latest else None
+    except Exception as exc:
+        logger.exception("Candle status request failed")
+        count = 0
+        latest_candle = None
+        error = str(exc)
+    return CandleStatusResponse(
+        ok=error is None,
+        symbol=symbol.upper(),
+        timeframe=timeframe,
+        count=count,
+        latest_candle=latest_candle,
+        backend="supabase" if error is None else "none",
+        error=error,
+    )
 
 
 @app.post("/api/backtest")

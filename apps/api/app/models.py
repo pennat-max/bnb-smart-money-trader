@@ -210,11 +210,14 @@ class CandleRecord(BaseModel):
     symbol: str
     timeframe: Literal["1m", "5m", "15m", "1h"]
     open_time: int
+    close_time: int | None = None
     open: float
     high: float
     low: float
     close: float
     volume: float
+    quote_volume: float | None = None
+    trades_count: int | None = None
 
 
 class CandleBackfillRequest(BaseModel):
@@ -230,6 +233,21 @@ class CandleBackfillResponse(BaseModel):
     days: int
     fetched: int
     saved: int
+    backend: Literal["supabase", "none"]
+    error: str | None = None
+
+
+class CandleStatusRequest(BaseModel):
+    symbol: str = "BNBUSDT"
+    timeframe: Literal["1m", "5m", "15m", "1h"] = "15m"
+
+
+class CandleStatusResponse(BaseModel):
+    ok: bool
+    symbol: str
+    timeframe: str
+    count: int
+    latest_candle: CandleRecord | None = None
     backend: Literal["supabase", "none"]
     error: str | None = None
 
