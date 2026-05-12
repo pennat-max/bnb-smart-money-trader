@@ -54,3 +54,22 @@ NEXT_PUBLIC_API_URL=https://your-backend-domain
 ```
 
 After Vercel gives you a domain, add it to the backend `FRONTEND_ORIGINS`.
+
+## 4. Online-only operation
+
+After GitHub, Railway, Vercel, and Supabase are connected, the local computer is no longer required to run the bot.
+
+Use:
+
+- `ONLINE_OPERATIONS.md` for mobile/cloud workflow.
+- GitHub Actions `Cloud health check` for automatic monitoring.
+- GitHub Codespaces if you need a browser-based coding environment.
+
+Keep these backend variables on Railway for paper-only learning:
+
+```env
+PAPER_TRADING_ENABLED=true
+PAPER_TRADING_INTERVAL_SECONDS=60
+PAPER_STARTING_BALANCE=1000
+PAPER_RISK_PCT=1
+```

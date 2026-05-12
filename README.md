@@ -14,6 +14,19 @@ Signal-only BNBUSDT perpetual trader dashboard.
 - `apps/api`: Python FastAPI backend.
 - `apps/web`: Next.js dashboard.
 - `supabase/schema.sql`: trade journal schema.
+- `ONLINE_OPERATIONS.md`: online-only runbook for mobile/cloud usage.
+
+## Online status
+
+Production runs without the local computer:
+
+- Dashboard: https://bnb-smart-money-trader.vercel.app
+- Backend: https://bnb-smart-money-api-production.up.railway.app
+- Database: Supabase
+- Code source of truth: GitHub
+- Paper loop: Railway, simulation only
+
+GitHub Actions includes `Cloud health check` to verify the live dashboard and API every 30 minutes.
 
 ## Environment
 

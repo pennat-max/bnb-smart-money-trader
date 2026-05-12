@@ -1,0 +1,21 @@
+name: Cloud health check
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Railway API
+        run: |
+          curl --fail --show-error --silent https://bnb-smart-money-api-production.up.railway.app/health
+          curl --fail --show-error --silent https://bnb-smart-money-api-production.up.railway.app/api/status
+
+      - name: Check Vercel dashboard proxies
+        run: |
+          curl --fail --show-error --silent https://bnb-smart-money-trader.vercel.app/status
+          curl --fail --show-error --silent "https://bnb-smart-money-trader.vercel.app/live?daily_pnl_pct=0&active_bnb_positions=0" >/dev/null
+
