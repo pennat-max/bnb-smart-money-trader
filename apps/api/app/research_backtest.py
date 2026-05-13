@@ -9,6 +9,7 @@ import httpx
 from .backtest import run_backtest
 from .collector import supabase_rest_headers
 from .config import Settings
+from .indicators import calculate_indicators
 from .models import (
     BacktestRequest,
     BacktestResult,
@@ -135,6 +136,8 @@ async def run_one_backtest(
             walk_forward_splits=4,
         )
         result = run_backtest(candles, settings, bt_request, derivatives_history=[])
+        if result.trades < request.min_trades:
+            result = run_exploratory_candle_backtest(candles, bt_request)
         run_id = save_backtest_result(settings, mission_id, result)
         save_backtest_trades(settings, mission_id, run_id, result.symbol, result.interval, result.all_trades)
         save_equity_curve(settings, mission_id, run_id, result.all_trades, request.starting_balance)
@@ -387,4 +390,138 @@ def backtest_note(result: BacktestResult) -> str:
         f"{result.symbol} {result.interval}: {result.trades} trades, win rate {result.win_rate}%, "
         f"PnL {result.total_pnl_pct}%, max DD {result.max_drawdown_pct}%, profile {result.profile}. "
         "ผลนี้เป็น backtest/paper research เท่านั้น ไม่ใช่คำแนะนำการลงทุน"
+    )
+
+
+def run_exploratory_candle_backtest(candles: list[dict], request: BacktestRequest) -> BacktestResult:
+    trades: list[BacktestTrade] = []
+    balance = request.starting_balance
+    peak_balance = balance
+    max_drawdown_pct = 0.0
+    round_trip_cost_pct = (request.fee_bps * 2) / 100
+    slippage_rate = request.slippage_bps / 10_000
+
+    for index in range(120, len(candles) - request.lookahead_candles):
+        window = candles[index - 120 : index]
+        current = candles[index]
+        ohlcv = [[row["open"], row["high"], row["low"], row["close"], row["volume"]] for row in window]
+        indicators = calculate_indicators(ohlcv)
+        price = current["close"]
+        previous = candles[index - 1]
+        recent_high = max(row["high"] for row in candles[index - 24 : index])
+        recent_low = min(row["low"] for row in candles[index - 24 : index])
+        bullish_stack = indicators.ema5 > indicators.ema10 > indicators.ema30 and indicators.macd_histogram > 0
+        bearish_stack = indicators.ema5 < indicators.ema10 < indicators.ema30 and indicators.macd_histogram < 0
+        bullish_sweep = current["low"] < recent_low and price > previous["close"]
+        bearish_sweep = current["high"] > recent_high and price < previous["close"]
+
+        side = None
+        reason = ""
+        confidence = 0
+        if bullish_sweep and indicators.rsi < 70:
+            side = "LONG"
+            confidence = 74
+            reason = "Research profile: bullish liquidity sweep + close reclaim, ใช้เฉพาะ backtest/paper"
+        elif bearish_sweep and indicators.rsi > 30:
+            side = "SHORT"
+            confidence = 74
+            reason = "Research profile: bearish liquidity sweep + rejection, ใช้เฉพาะ backtest/paper"
+        elif bullish_stack and 42 <= indicators.rsi <= 68 and price > indicators.bb_middle:
+            side = "LONG"
+            confidence = 68
+            reason = "Research profile: EMA/MACD trend stack + price above BB middle"
+        elif bearish_stack and 32 <= indicators.rsi <= 58 and price < indicators.bb_middle:
+            side = "SHORT"
+            confidence = 68
+            reason = "Research profile: EMA/MACD trend stack + price below BB middle"
+        if side is None:
+            continue
+
+        raw_entry = price
+        entry = raw_entry * (1 + slippage_rate) if side == "LONG" else raw_entry * (1 - slippage_rate)
+        stop_distance = max(abs(price - indicators.bb_middle), price * 0.004)
+        reward = 1.15 if confidence >= 72 else 0.85
+        take_profit = round(raw_entry + stop_distance * reward, 2) if side == "LONG" else round(raw_entry - stop_distance * reward, 2)
+        stop_loss = round(raw_entry - stop_distance, 2) if side == "LONG" else round(raw_entry + stop_distance, 2)
+        outcome = "TIMEOUT"
+        exit_price = candles[index + request.lookahead_candles]["close"]
+        closed_at = candles[index + request.lookahead_candles]["close_time"]
+
+        for future_candle in candles[index + 1 : index + request.lookahead_candles + 1]:
+            if side == "LONG":
+                if future_candle["low"] <= stop_loss:
+                    outcome = "LOSS"
+                    exit_price = stop_loss
+                    closed_at = future_candle["close_time"]
+                    break
+                if future_candle["high"] >= take_profit:
+                    outcome = "WIN"
+                    exit_price = take_profit
+                    closed_at = future_candle["close_time"]
+                    break
+            else:
+                if future_candle["high"] >= stop_loss:
+                    outcome = "LOSS"
+                    exit_price = stop_loss
+                    closed_at = future_candle["close_time"]
+                    break
+                if future_candle["low"] <= take_profit:
+                    outcome = "WIN"
+                    exit_price = take_profit
+                    closed_at = future_candle["close_time"]
+                    break
+
+        slipped_exit = exit_price * (1 - slippage_rate) if side == "LONG" else exit_price * (1 + slippage_rate)
+        gross_pnl_pct = ((slipped_exit - entry) / entry) * 100
+        if side == "SHORT":
+            gross_pnl_pct *= -1
+        pnl_pct = round(gross_pnl_pct - round_trip_cost_pct, 3)
+        gross_pnl_pct = round(gross_pnl_pct, 3)
+        balance *= 1 + pnl_pct / 100
+        peak_balance = max(peak_balance, balance)
+        drawdown = ((peak_balance - balance) / peak_balance) * 100 if peak_balance else 0
+        max_drawdown_pct = max(max_drawdown_pct, drawdown)
+        trades.append(
+            BacktestTrade(
+                opened_at=current["open_time"],
+                closed_at=closed_at,
+                side=side,  # type: ignore[arg-type]
+                entry=round(entry, 2),
+                take_profit=take_profit,
+                stop_loss=stop_loss,
+                exit_price=round(exit_price, 2),
+                outcome=outcome,  # type: ignore[arg-type]
+                pnl_pct=pnl_pct,
+                gross_pnl_pct=gross_pnl_pct,
+                cost_pct=round(round_trip_cost_pct, 3),
+                confidence=confidence,
+                reason=reason,
+            )
+        )
+
+    wins = sum(1 for trade in trades if trade.outcome == "WIN")
+    losses = sum(1 for trade in trades if trade.outcome == "LOSS")
+    timeouts = sum(1 for trade in trades if trade.outcome == "TIMEOUT")
+    return BacktestResult(
+        symbol=request.symbol,
+        interval=request.interval,
+        period_days=request.period_days,
+        candles_tested=len(candles),
+        trades=len(trades),
+        wins=wins,
+        losses=losses,
+        timeouts=timeouts,
+        win_rate=round((wins / len(trades)) * 100, 2) if trades else 0,
+        gross_pnl_pct=round(sum(trade.gross_pnl_pct for trade in trades), 3),
+        cost_pct=round(sum(trade.cost_pct for trade in trades), 3),
+        total_pnl_pct=round(((balance - request.starting_balance) / request.starting_balance) * 100, 3),
+        ending_balance=round(balance, 2),
+        max_drawdown_pct=round(max_drawdown_pct, 3),
+        walk_forward=[],
+        learning_note="Exploratory candle-only research fallback. ใช้เพื่อหา candidate สำหรับ paper simulation เท่านั้น",
+        profile="exploratory_smc_candle_v1",
+        optimizer_note="Legacy signal produced too few trades on stored candles, so Backtest v2 used a research-only candle profile.",
+        tested_profiles=[],
+        recent_trades=trades[-12:],
+        all_trades=trades,
     )
