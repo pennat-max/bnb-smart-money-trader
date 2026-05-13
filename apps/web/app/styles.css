@@ -518,11 +518,19 @@ h1 {
 }
 
 .bestRun {
-  background: rgba(35, 196, 131, 0.12);
-  border: 1px solid rgba(35, 196, 131, 0.42);
   border-radius: 8px;
   margin-top: 14px;
   padding: 12px;
+}
+
+.bestRun.ready {
+  background: rgba(35, 196, 131, 0.12);
+  border: 1px solid rgba(35, 196, 131, 0.42);
+}
+
+.bestRun.caution {
+  background: rgba(242, 184, 75, 0.12);
+  border: 1px solid rgba(242, 184, 75, 0.48);
 }
 
 .bestRun span {
@@ -533,9 +541,16 @@ h1 {
 }
 
 .bestRun strong {
-  color: var(--green);
   display: block;
   font-size: 20px;
+}
+
+.bestRun.ready strong {
+  color: var(--green);
+}
+
+.bestRun.caution strong {
+  color: var(--amber);
 }
 
 .bestRun p {

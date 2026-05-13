@@ -94,11 +94,7 @@ async def run_research_backtests(settings: Settings, request: ResearchBacktestRu
         runs=runs,
         best_run=best,
         backend="supabase",
-        message_th=(
-            f"Backtest v2 เสร็จแล้ว เลือก {best.symbol} {best.timeframe} profile {best.profile} เป็นตัวเต็งสำหรับ paper simulation"
-            if best
-            else "Backtest v2 รันแล้ว แต่ยังไม่มีผลที่พอเลือกเป็นตัวเต็ง"
-        ),
+        message_th=backtest_summary_message(best),
     )
 
 
@@ -372,17 +368,42 @@ def choose_best_run(runs: list[ResearchBacktestRunSummary]) -> ResearchBacktestR
     done = [run for run in runs if run.status == "done" and run.trades > 0]
     if not done:
         return None
+    profitable = [run for run in done if run.total_pnl_pct > 0]
+    if profitable:
+        return sorted(
+            profitable,
+            key=lambda run: (
+                run.win_rate,
+                run.total_pnl_pct,
+                -run.max_drawdown_pct,
+                run.trades,
+            ),
+            reverse=True,
+        )[0]
     return sorted(
         done,
         key=lambda run: (
-            run.total_pnl_pct > 0,
-            run.win_rate,
             run.total_pnl_pct,
             -run.max_drawdown_pct,
+            run.win_rate,
             run.trades,
         ),
         reverse=True,
     )[0]
+
+
+def backtest_summary_message(best: ResearchBacktestRunSummary | None) -> str:
+    if not best:
+        return "Backtest v2 รันแล้ว แต่ยังไม่มีผลที่พอเลือกเป็น candidate"
+    if best.total_pnl_pct <= 0:
+        return (
+            f"Backtest v2 เสร็จแล้ว ผลยังติดลบทั้งหมด ชุดที่เสียหายน้อยสุดคือ {best.symbol} {best.timeframe} "
+            f"PnL {best.total_pnl_pct}% / DD {best.max_drawdown_pct}%. ยังไม่ควรเริ่ม paper simulation อัตโนมัติ"
+        )
+    return (
+        f"Backtest v2 เสร็จแล้ว เลือก {best.symbol} {best.timeframe} profile {best.profile} "
+        "เป็น candidate สำหรับ paper simulation แบบปลอดเงินจริง"
+    )
 
 
 def backtest_note(result: BacktestResult) -> str:

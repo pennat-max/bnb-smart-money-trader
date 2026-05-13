@@ -389,8 +389,8 @@ export default function ResearchMissionControl() {
           </div>
           <p className="saveState">{message}</p>
           {researchBacktest?.best_run && (
-            <div className="bestRun">
-              <span>ตัวเต็งสำหรับ paper simulation</span>
+            <div className={`bestRun ${researchBacktest.best_run.total_pnl_pct > 0 ? "ready" : "caution"}`}>
+              <span>{researchBacktest.best_run.total_pnl_pct > 0 ? "candidate สำหรับ paper simulation" : "ชุดที่เสียหายน้อยสุดเพื่อศึกษาต่อ"}</span>
               <strong>{researchBacktest.best_run.symbol} {researchBacktest.best_run.timeframe}</strong>
               <p>{researchBacktest.best_run.note_th}</p>
             </div>
