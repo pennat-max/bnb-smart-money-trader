@@ -28,9 +28,12 @@ from .models import (
     PaperRunRequest,
     PaperRunResponse,
     RuntimeStatus,
+    ResearchMissionRequest,
+    ResearchMissionResponse,
     TestnetOrderPreviewRequest,
 )
 from .paper import active_paper_trade, load_paper_trades, maybe_close_trade, open_paper_trade, paper_entry_block_reason
+from .research_mission import create_research_mission, latest_research_mission
 from .signal_engine import generate_signal
 
 settings = get_settings()
@@ -204,6 +207,8 @@ async def runtime_status():
         candle_collector_symbols=settings.candle_symbols,
         candle_collector_timeframes=settings.candle_timeframes,
         ai_committee_enabled=settings.ai_committee_enabled,
+        ai_research_enabled=settings.ai_research_enabled,
+        ai_auto_strategy_changes=settings.ai_auto_strategy_changes,
         ai_providers_configured=configured_ai_providers(settings),
         risk_daily_target_pct=settings.risk_daily_target_pct,
         risk_max_daily_loss_pct=settings.risk_max_daily_loss_pct,
@@ -381,6 +386,18 @@ async def learning():
 async def ai_report(request: AIReportRequest):
     settings = get_settings()
     return await generate_ai_committee_report(settings, request)
+
+
+@app.post("/api/research/mission/start", response_model=ResearchMissionResponse)
+async def research_mission_start(request: ResearchMissionRequest):
+    settings = get_settings()
+    return await create_research_mission(settings, request)
+
+
+@app.get("/api/research/mission/latest", response_model=ResearchMissionResponse)
+async def research_mission_latest():
+    settings = get_settings()
+    return await latest_research_mission(settings)
 
 
 @app.post("/api/paper/run", response_model=PaperRunResponse)

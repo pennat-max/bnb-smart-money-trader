@@ -261,3 +261,49 @@ create index if not exists data_quality_checks_symbol_timeframe_idx
 alter table public.data_quality_checks enable row level security;
 
 -- Data quality check writes should go through the backend with SUPABASE_SERVICE_ROLE_KEY.
+
+create table if not exists public.research_jobs (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  status text not null check (status in ('planned', 'running', 'done', 'blocked', 'failed')) default 'planned',
+  mode text not null default 'research_only',
+  goal text not null,
+  symbols text[] not null default array['BNBUSDT', 'BTCUSDT'],
+  timeframes text[] not null default array['1m', '5m', '15m', '1h'],
+  max_days integer not null default 30,
+  real_trading boolean not null default false,
+  auto_strategy_changes boolean not null default false,
+  recommended_plan jsonb not null default '{}'::jsonb,
+  summary_th text not null default '',
+  error text
+);
+
+create index if not exists research_jobs_created_at_idx
+  on public.research_jobs (created_at desc);
+
+create index if not exists research_jobs_status_idx
+  on public.research_jobs (status, created_at desc);
+
+alter table public.research_jobs enable row level security;
+
+create table if not exists public.research_events (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  job_id uuid references public.research_jobs(id) on delete cascade,
+  step text not null,
+  status text not null check (status in ('queued', 'running', 'done', 'blocked', 'warning')),
+  title_th text not null,
+  detail_th text not null,
+  metadata jsonb not null default '{}'::jsonb
+);
+
+create index if not exists research_events_job_created_at_idx
+  on public.research_events (job_id, created_at asc);
+
+create index if not exists research_events_created_at_idx
+  on public.research_events (created_at desc);
+
+alter table public.research_events enable row level security;
+
+-- Research writes should go through the backend with SUPABASE_SERVICE_ROLE_KEY.

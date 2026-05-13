@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     candle_collector_timeframes: str = Field(default="1m,5m,15m,1h", alias="CANDLE_COLLECTOR_TIMEFRAMES")
     candle_collector_backfill_days: int = Field(default=7, alias="CANDLE_COLLECTOR_BACKFILL_DAYS")
     ai_committee_enabled: bool = Field(default=True, alias="AI_COMMITTEE_ENABLED")
+    ai_research_enabled: bool = Field(default=True, alias="AI_RESEARCH_ENABLED")
+    ai_auto_strategy_changes: bool = Field(default=False, alias="AI_AUTO_STRATEGY_CHANGES")
     ai_primary_provider: str = Field(default="deepseek", alias="AI_PRIMARY_PROVIDER")
     ai_secondary_provider: str = Field(default="gemini", alias="AI_SECONDARY_PROVIDER")
     ai_fast_provider: str = Field(default="groq", alias="AI_FAST_PROVIDER")

@@ -158,6 +158,8 @@ class RuntimeStatus(BaseModel):
     candle_collector_symbols: list[str] = []
     candle_collector_timeframes: list[str] = []
     ai_committee_enabled: bool = False
+    ai_research_enabled: bool = False
+    ai_auto_strategy_changes: bool = False
     ai_providers_configured: list[str] = []
     risk_daily_target_pct: float
     risk_max_daily_loss_pct: float
@@ -384,3 +386,36 @@ class AICommitteeReport(BaseModel):
     strategy_adjustments: list[str]
     safety_notes: list[str]
     provider_reports: list[AIProviderReport]
+
+
+class ResearchMissionRequest(BaseModel):
+    goal: str = "หาแผนวิจัยที่เหมาะสมสำหรับ BNBUSDT แบบ paper-only"
+    symbols: list[str] = ["BNBUSDT", "BTCUSDT"]
+    timeframes: list[Literal["1m", "5m", "15m", "1h"]] = ["1m", "5m", "15m", "1h"]
+    max_days: int = Field(default=30, ge=1, le=90)
+    include_paper_simulation_plan: bool = True
+
+
+class ResearchEvent(BaseModel):
+    id: str | None = None
+    created_at: datetime
+    job_id: str | None = None
+    step: str
+    status: Literal["queued", "running", "done", "blocked", "warning"]
+    title_th: str
+    detail_th: str
+    metadata: dict = {}
+
+
+class ResearchMissionResponse(BaseModel):
+    ok: bool
+    job_id: str | None = None
+    status: Literal["planned", "running", "done", "blocked", "failed"]
+    mode: str = "research_only"
+    real_trading: bool = False
+    auto_strategy_changes: bool = False
+    goal: str
+    recommended_plan: dict
+    events: list[ResearchEvent]
+    backend: Literal["supabase", "memory", "none"] = "none"
+    error: str | None = None

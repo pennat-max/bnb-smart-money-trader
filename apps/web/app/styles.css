@@ -136,6 +136,96 @@ h1 {
   margin-bottom: 16px;
 }
 
+.missionHero {
+  align-items: end;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  margin-bottom: 16px;
+  padding: 16px;
+}
+
+.missionHero span {
+  color: var(--muted);
+  display: block;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.missionHero strong {
+  display: block;
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.missionHero p {
+  color: var(--muted);
+  line-height: 1.45;
+  margin: 8px 0 0;
+}
+
+.stepTimeline {
+  display: grid;
+  gap: 10px;
+}
+
+.stepItem {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  padding: 12px;
+}
+
+.stepItem.done {
+  border-color: rgba(35, 196, 131, 0.38);
+}
+
+.stepItem.warning,
+.stepItem.queued {
+  border-color: rgba(242, 184, 75, 0.48);
+}
+
+.stepItem.blocked {
+  border-color: rgba(255, 100, 100, 0.42);
+}
+
+.stepMarker {
+  align-items: center;
+  background: #11171d;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--cyan);
+  display: flex;
+  font-weight: 800;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.stepTop {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.stepTop span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.stepItem p {
+  color: var(--muted);
+  line-height: 1.45;
+  margin: 6px 0 0;
+}
+
 .statusCard {
   min-height: 118px;
   padding: 16px;
@@ -186,6 +276,10 @@ h1 {
 .foundationStats {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-bottom: 14px;
+}
+
+.foundationStats.twoColumns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .field {
@@ -352,6 +446,77 @@ h1 {
   gap: 10px;
 }
 
+.compactList,
+.matrixGrid,
+.ruleList {
+  display: grid;
+  gap: 10px;
+}
+
+.compactItem,
+.matrixCard,
+.ruleItem {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 11px 12px;
+}
+
+.compactItem.pass {
+  border-color: rgba(35, 196, 131, 0.35);
+}
+
+.compactItem.warn {
+  border-color: rgba(242, 184, 75, 0.55);
+}
+
+.compactItem.fail {
+  border-color: rgba(255, 100, 100, 0.65);
+}
+
+.compactItem span,
+.matrixCard small,
+.matrixCard p,
+.ruleItem span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.matrixGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.matrixTop {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.matrixTop span {
+  color: var(--cyan);
+  font-weight: 700;
+}
+
+.matrixCard p {
+  line-height: 1.4;
+  min-height: 38px;
+}
+
+.ruleItem {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.ruleItem svg {
+  color: var(--green);
+  flex: 0 0 auto;
+}
+
+.resultStats {
+  margin-top: 14px;
+}
+
 .runItem,
 .queueItem {
   background: var(--panel-2);
@@ -426,7 +591,8 @@ h1 {
   .safetyGrid,
   .phaseGrid,
   .healthGrid,
-  .foundationStats {
+  .foundationStats,
+  .matrixGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -442,7 +608,8 @@ h1 {
   }
 
   .labHeader,
-  .signalReadout {
+  .signalReadout,
+  .missionHero {
     grid-template-columns: 1fr;
   }
 
@@ -453,7 +620,9 @@ h1 {
   .safetyGrid,
   .phaseGrid,
   .healthGrid,
-  .foundationStats {
+  .foundationStats,
+  .foundationStats.twoColumns,
+  .matrixGrid {
     grid-template-columns: 1fr;
   }
 
