@@ -98,6 +98,22 @@ async def run_research_backtests(settings: Settings, request: ResearchBacktestRu
     )
 
 
+async def latest_research_backtests(settings: Settings, mission_id: str | None = None, limit: int = 8) -> ResearchBacktestRunResponse:
+    mission = await latest_research_mission(settings)
+    resolved_mission_id = mission_id or mission.job_id
+    runs = fetch_latest_backtest_runs(settings, resolved_mission_id, limit=limit)
+    best = choose_best_run(runs)
+    return ResearchBacktestRunResponse(
+        ok=bool(runs),
+        mission_id=resolved_mission_id,
+        auto_strategy_changes=settings.ai_auto_strategy_changes,
+        runs=runs,
+        best_run=best,
+        backend="supabase" if runs else "none",
+        message_th=backtest_summary_message(best) if runs else "ยังไม่มีผล Backtest v2 ล่าสุด กดรัน Backtest v2 จาก Supabase ก่อน",
+    )
+
+
 async def run_one_backtest(
     settings: Settings,
     request: ResearchBacktestRunRequest,
@@ -160,7 +176,50 @@ async def run_one_backtest(
             status="failed",
             note_th=f"{symbol} {timeframe} รันไม่สำเร็จ: {str(exc)[:180]}",
             error=str(exc),
+    )
+
+
+def fetch_latest_backtest_runs(settings: Settings, mission_id: str | None, limit: int = 8) -> list[ResearchBacktestRunSummary]:
+    headers = supabase_rest_headers(settings)
+    url = table_url(settings, "backtest_runs")
+    if headers is None or url is None:
+        return []
+    params = {
+        "select": "id,symbol,timeframe,period_days,status,candles_tested,trades,win_rate,total_pnl_pct,max_drawdown_pct,profile,learning_note,error",
+        "order": "created_at.desc",
+        "limit": str(max(1, min(limit, 30))),
+    }
+    if mission_id:
+        params["mission_id"] = f"eq.{mission_id}"
+    try:
+        with httpx.Client(timeout=15) as client:
+            response = client.get(url, params=params, headers=headers)
+            response.raise_for_status()
+            rows = response.json()
+    except Exception:
+        logger.exception("Fetch latest research backtests failed")
+        return []
+    if not isinstance(rows, list):
+        return []
+    summaries = [
+        ResearchBacktestRunSummary(
+            run_id=row.get("id"),
+            symbol=str(row.get("symbol", "BNBUSDT")),
+            timeframe=str(row.get("timeframe", "15m")),
+            period_days=int(row.get("period_days", 0) or 0),
+            status="done" if row.get("status") == "done" else "failed",
+            candles_tested=int(row.get("candles_tested", 0) or 0),
+            trades=int(row.get("trades", 0) or 0),
+            win_rate=float(row.get("win_rate", 0) or 0),
+            total_pnl_pct=float(row.get("total_pnl_pct", 0) or 0),
+            max_drawdown_pct=float(row.get("max_drawdown_pct", 0) or 0),
+            profile=str(row.get("profile", "")),
+            note_th=str(row.get("learning_note") or ""),
+            error=row.get("error"),
         )
+        for row in rows
+    ]
+    return list(reversed(summaries))
 
 
 def fetch_candles_from_supabase(settings: Settings, symbol: str, timeframe: str, days: int) -> list[dict]:

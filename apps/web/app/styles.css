@@ -88,6 +88,7 @@ h1 {
 
 .safetyGrid,
 .primaryGrid,
+.visualGrid,
 .phaseGrid,
 .researchGrid,
 .foundationStats,
@@ -112,6 +113,11 @@ h1 {
 
 .researchGrid {
   grid-template-columns: minmax(0, 1fr) minmax(320px, 0.7fr) minmax(360px, 0.9fr);
+  margin-top: 14px;
+}
+
+.visualGrid {
+  grid-template-columns: minmax(320px, 0.55fr) minmax(0, 1.45fr);
   margin-top: 14px;
 }
 
@@ -563,6 +569,149 @@ h1 {
   margin-top: 14px;
 }
 
+.progressTrack {
+  background: #0e1419;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  height: 16px;
+  overflow: hidden;
+}
+
+.progressFill {
+  background: linear-gradient(90deg, var(--cyan), var(--green));
+  height: 100%;
+  transition: width 0.25s ease;
+}
+
+.progressMeta {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+  margin: 12px 0 16px;
+}
+
+.progressMeta strong {
+  color: var(--cyan);
+  font-size: 28px;
+}
+
+.progressMeta span,
+.emptyText {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.stageMap {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.stageDot {
+  align-items: center;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  min-height: 74px;
+  padding: 10px;
+}
+
+.stageDot span {
+  background: #0d1116;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  height: 18px;
+  width: 18px;
+}
+
+.stageDot.active span {
+  border-color: var(--amber);
+}
+
+.stageDot.done span {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.stageDot strong {
+  font-size: 13px;
+}
+
+.chartStack {
+  display: grid;
+  gap: 12px;
+}
+
+.runChartRow {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.runChartTitle {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.runChartTitle span,
+.metricLabel span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.metricBar {
+  display: grid;
+  gap: 5px;
+}
+
+.metricLabel {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.metricLabel strong {
+  font-size: 13px;
+}
+
+.barTrack {
+  background: #0e1419;
+  border: 1px solid rgba(49, 59, 70, 0.75);
+  border-radius: 999px;
+  height: 10px;
+  overflow: hidden;
+}
+
+.barFill {
+  border-radius: 999px;
+  height: 100%;
+  min-width: 4px;
+}
+
+.barFill.green {
+  background: var(--green);
+}
+
+.barFill.red {
+  background: var(--red);
+}
+
+.barFill.amber {
+  background: var(--amber);
+}
+
+.barFill.cyan {
+  background: var(--cyan);
+}
+
 .runItem,
 .queueItem {
   background: var(--panel-2);
@@ -643,7 +792,8 @@ h1 {
   }
 
   .primaryGrid,
-  .researchGrid {
+  .researchGrid,
+  .visualGrid {
     grid-template-columns: 1fr;
   }
 }
@@ -668,7 +818,8 @@ h1 {
   .healthGrid,
   .foundationStats,
   .foundationStats.twoColumns,
-  .matrixGrid {
+  .matrixGrid,
+  .stageMap {
     grid-template-columns: 1fr;
   }
 

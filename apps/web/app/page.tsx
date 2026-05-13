@@ -128,16 +128,21 @@ export default function ResearchMissionControl() {
   async function refresh() {
     try {
       setError(null);
-      const [statusResponse, healthResponse, missionResponse] = await Promise.all([
+      const [statusResponse, healthResponse, missionResponse, latestBacktestResponse] = await Promise.all([
         fetch(`${apiUrl}/status`, { cache: "no-store" }),
         fetch(`${apiUrl}/market-data-health`, { cache: "no-store" }),
-        fetch(`${apiUrl}/research-mission`, { cache: "no-store" })
+        fetch(`${apiUrl}/research-mission`, { cache: "no-store" }),
+        fetch(`${apiUrl}/research-backtests-run`, { cache: "no-store" })
       ]);
 
       if (statusResponse.ok) setRuntimeStatus((await statusResponse.json()) as RuntimeStatus);
       if (healthResponse.ok) setMarketDataHealth((await healthResponse.json()) as MarketDataHealth);
       if (missionResponse.ok) setMission((await missionResponse.json()) as ResearchMission);
-      if (!statusResponse.ok || !healthResponse.ok || !missionResponse.ok) {
+      if (latestBacktestResponse.ok) {
+        const latestBacktest = (await latestBacktestResponse.json()) as ResearchBacktestRunResponse;
+        if (latestBacktest.runs?.length) setResearchBacktest(latestBacktest);
+      }
+      if (!statusResponse.ok || !healthResponse.ok || !missionResponse.ok || !latestBacktestResponse.ok) {
         setError("บาง endpoint ยังไม่ตอบสนอง ลองรีเฟรชอีกครั้งหลัง deploy backend เสร็จ");
       }
     } catch (err) {
@@ -164,6 +169,10 @@ export default function ResearchMissionControl() {
 
   const matrix = mission?.recommended_plan.backtest_matrix ?? [];
   const rules = mission?.recommended_plan.selection_rules ?? [];
+  const chartRuns = researchBacktest?.runs ?? [];
+  const completedSteps = mission?.events?.filter((event) => event.status === "done").length ?? 0;
+  const totalSteps = Math.max(mission?.events?.length ?? 1, 1);
+  const progressPct = Math.round((completedSteps / totalSteps) * 100);
 
   async function startMission() {
     setBusy(true);
@@ -334,6 +343,44 @@ export default function ResearchMissionControl() {
         </div>
       </section>
 
+      <section className="visualGrid">
+        <div className="panel">
+          <div className="panelHeader">
+            <span>ภาพรวมความคืบหน้า</span>
+            <Activity size={18} />
+          </div>
+          <div className="progressTrack">
+            <div className="progressFill" style={{ width: `${progressPct}%` }} />
+          </div>
+          <div className="progressMeta">
+            <strong>{progressPct}%</strong>
+            <span>{completedSteps}/{totalSteps} ขั้นตอนเสร็จแล้ว</span>
+          </div>
+          <div className="stageMap">
+            <StageDot label="วางแผน" active={Boolean(mission)} done={Boolean(mission?.events?.some((event) => event.step === "planner"))} />
+            <StageDot label="ตรวจข้อมูล" active={Boolean(mission)} done={Boolean(mission?.events?.some((event) => event.step === "data_health" && event.status === "done"))} />
+            <StageDot label="Backtest" active={Boolean(chartRuns.length)} done={Boolean(chartRuns.length)} />
+            <StageDot label="Paper" active={Boolean(researchBacktest?.best_run?.total_pnl_pct && researchBacktest.best_run.total_pnl_pct > 0)} done={false} />
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panelHeader">
+            <span>ผลแต่ละ Timeframe</span>
+            <BarChart3 size={18} />
+          </div>
+          {chartRuns.length ? (
+            <div className="chartStack">
+              {chartRuns.map((run) => (
+                <RunChartRow key={`${run.run_id}-${run.symbol}-${run.timeframe}`} run={run} />
+              ))}
+            </div>
+          ) : (
+            <p className="emptyText">ยังไม่มีกราฟผลลัพธ์ กด “รัน Backtest v2 จาก Supabase” เพื่อสร้างกราฟ</p>
+          )}
+        </div>
+      </section>
+
       <section className="researchGrid">
         <div className="panel">
           <div className="panelHeader">
@@ -434,6 +481,47 @@ function Field({ label, value }: { label: string; value: string }) {
     <div className="field">
       <span>{label}</span>
       <strong>{value}</strong>
+    </div>
+  );
+}
+
+function StageDot({ label, active, done }: { label: string; active: boolean; done: boolean }) {
+  return (
+    <div className={`stageDot ${done ? "done" : active ? "active" : ""}`}>
+      <span />
+      <strong>{label}</strong>
+    </div>
+  );
+}
+
+function RunChartRow({ run }: { run: ResearchBacktestRunSummary }) {
+  const pnlWidth = Math.min(100, Math.max(4, Math.abs(run.total_pnl_pct) * 3));
+  const winWidth = Math.min(100, Math.max(4, run.win_rate));
+  const ddWidth = Math.min(100, Math.max(4, run.max_drawdown_pct * 3));
+  const pnlPositive = run.total_pnl_pct > 0;
+  return (
+    <div className="runChartRow">
+      <div className="runChartTitle">
+        <strong>{run.symbol} {run.timeframe}</strong>
+        <span>{run.trades} trades / {run.profile}</span>
+      </div>
+      <MetricBar label="PnL" value={`${run.total_pnl_pct}%`} width={pnlWidth} tone={pnlPositive ? "green" : "red"} />
+      <MetricBar label="Win Rate" value={`${run.win_rate}%`} width={winWidth} tone="cyan" />
+      <MetricBar label="Drawdown" value={`${run.max_drawdown_pct}%`} width={ddWidth} tone="amber" />
+    </div>
+  );
+}
+
+function MetricBar({ label, value, width, tone }: { label: string; value: string; width: number; tone: "green" | "red" | "amber" | "cyan" }) {
+  return (
+    <div className="metricBar">
+      <div className="metricLabel">
+        <span>{label}</span>
+        <strong>{value}</strong>
+      </div>
+      <div className="barTrack">
+        <div className={`barFill ${tone}`} style={{ width: `${width}%` }} />
+      </div>
     </div>
   );
 }

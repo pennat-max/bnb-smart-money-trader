@@ -19,14 +19,26 @@ function resolveBackendUrl() {
   return fallbackBackendUrl;
 }
 
+export async function GET(request: NextRequest) {
+  const upstream = new URL("/api/research/backtests/latest", backendUrl);
+  request.nextUrl.searchParams.forEach((value, key) => upstream.searchParams.set(key, value));
+  return proxy(upstream);
+}
+
 export async function POST(request: NextRequest) {
   const upstream = new URL("/api/research/backtests/run", backendUrl);
+  return proxy(upstream, {
+    body: await request.text(),
+    headers: { "content-type": request.headers.get("content-type") ?? "application/json" },
+    method: "POST"
+  });
+}
+
+async function proxy(upstream: URL, init?: RequestInit) {
   try {
     const response = await fetch(upstream, {
-      body: await request.text(),
       cache: "no-store",
-      headers: { "content-type": request.headers.get("content-type") ?? "application/json" },
-      method: "POST"
+      ...init
     });
     return new NextResponse(await response.text(), {
       status: response.status,
