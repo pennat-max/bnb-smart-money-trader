@@ -306,6 +306,7 @@ class BacktestResult(BaseModel):
     optimizer_note: str = ""
     tested_profiles: list[dict[str, float | int | str]] = []
     recent_trades: list[BacktestTrade]
+    all_trades: list[BacktestTrade] = []
 
 
 class PaperRunRequest(BaseModel):
@@ -419,3 +420,40 @@ class ResearchMissionResponse(BaseModel):
     events: list[ResearchEvent]
     backend: Literal["supabase", "memory", "none"] = "none"
     error: str | None = None
+
+
+class ResearchBacktestRunSummary(BaseModel):
+    run_id: str | None = None
+    symbol: str
+    timeframe: str
+    period_days: int
+    status: Literal["done", "failed", "skipped"]
+    candles_tested: int = 0
+    trades: int = 0
+    win_rate: float = 0
+    total_pnl_pct: float = 0
+    max_drawdown_pct: float = 0
+    profile: str = ""
+    note_th: str = ""
+    error: str | None = None
+
+
+class ResearchBacktestRunRequest(BaseModel):
+    mission_id: str | None = None
+    max_items: int = Field(default=4, ge=1, le=8)
+    starting_balance: float = Field(default=1000, gt=0)
+    min_trades: int = Field(default=5, ge=1, le=200)
+    optimize_for_win_rate: bool = True
+    smart_money_priority: bool = True
+
+
+class ResearchBacktestRunResponse(BaseModel):
+    ok: bool
+    mission_id: str | None = None
+    mode: str = "research_backtest_only"
+    real_trading: bool = False
+    auto_strategy_changes: bool = False
+    runs: list[ResearchBacktestRunSummary]
+    best_run: ResearchBacktestRunSummary | None = None
+    backend: Literal["supabase", "none"] = "none"
+    message_th: str

@@ -307,3 +307,91 @@ create index if not exists research_events_created_at_idx
 alter table public.research_events enable row level security;
 
 -- Research writes should go through the backend with SUPABASE_SERVICE_ROLE_KEY.
+
+create table if not exists public.backtest_runs (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  mission_id uuid references public.research_jobs(id) on delete set null,
+  strategy_version text not null default 'legacy_signal_engine_v1',
+  symbol text not null,
+  timeframe text not null,
+  period_days integer not null,
+  status text not null check (status in ('running', 'done', 'failed')) default 'running',
+  candles_tested integer not null default 0,
+  trades integer not null default 0,
+  wins integer not null default 0,
+  losses integer not null default 0,
+  timeouts integer not null default 0,
+  win_rate numeric not null default 0,
+  total_pnl_pct numeric not null default 0,
+  max_drawdown_pct numeric not null default 0,
+  ending_balance numeric not null default 0,
+  profile text not null default '',
+  optimizer_note text not null default '',
+  learning_note text not null default '',
+  tested_profiles jsonb not null default '[]'::jsonb,
+  walk_forward jsonb not null default '[]'::jsonb,
+  result_payload jsonb not null default '{}'::jsonb,
+  error text
+);
+
+create index if not exists backtest_runs_created_at_idx
+  on public.backtest_runs (created_at desc);
+
+create index if not exists backtest_runs_mission_idx
+  on public.backtest_runs (mission_id, created_at desc);
+
+create index if not exists backtest_runs_symbol_timeframe_idx
+  on public.backtest_runs (symbol, timeframe, created_at desc);
+
+alter table public.backtest_runs enable row level security;
+
+create table if not exists public.backtest_trades (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  run_id uuid references public.backtest_runs(id) on delete cascade,
+  mission_id uuid references public.research_jobs(id) on delete set null,
+  symbol text not null,
+  timeframe text not null,
+  opened_at bigint not null,
+  closed_at bigint not null,
+  side text not null check (side in ('LONG', 'SHORT')),
+  entry numeric not null,
+  take_profit numeric not null,
+  stop_loss numeric not null,
+  exit_price numeric not null,
+  outcome text not null check (outcome in ('WIN', 'LOSS', 'TIMEOUT')),
+  pnl_pct numeric not null,
+  gross_pnl_pct numeric not null default 0,
+  cost_pct numeric not null default 0,
+  confidence integer not null default 0,
+  reason text not null default '',
+  raw_payload jsonb not null default '{}'::jsonb
+);
+
+create index if not exists backtest_trades_run_idx
+  on public.backtest_trades (run_id, opened_at asc);
+
+create index if not exists backtest_trades_mission_idx
+  on public.backtest_trades (mission_id, opened_at asc);
+
+alter table public.backtest_trades enable row level security;
+
+create table if not exists public.backtest_equity_curve (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  run_id uuid references public.backtest_runs(id) on delete cascade,
+  mission_id uuid references public.research_jobs(id) on delete set null,
+  point_index integer not null,
+  timestamp bigint not null,
+  equity numeric not null,
+  drawdown_pct numeric not null default 0,
+  pnl_pct numeric not null default 0
+);
+
+create index if not exists backtest_equity_curve_run_idx
+  on public.backtest_equity_curve (run_id, point_index asc);
+
+alter table public.backtest_equity_curve enable row level security;
+
+-- Backtest run/trade/equity writes should go through the backend with SUPABASE_SERVICE_ROLE_KEY.

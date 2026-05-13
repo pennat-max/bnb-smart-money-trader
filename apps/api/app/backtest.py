@@ -266,6 +266,7 @@ def run_backtest_profile(
         optimizer_note="",
         tested_profiles=[],
         recent_trades=trades[-12:],
+        all_trades=trades,
     )
 
 

@@ -30,9 +30,12 @@ from .models import (
     RuntimeStatus,
     ResearchMissionRequest,
     ResearchMissionResponse,
+    ResearchBacktestRunRequest,
+    ResearchBacktestRunResponse,
     TestnetOrderPreviewRequest,
 )
 from .paper import active_paper_trade, load_paper_trades, maybe_close_trade, open_paper_trade, paper_entry_block_reason
+from .research_backtest import run_research_backtests
 from .research_mission import create_research_mission, latest_research_mission
 from .signal_engine import generate_signal
 
@@ -398,6 +401,12 @@ async def research_mission_start(request: ResearchMissionRequest):
 async def research_mission_latest():
     settings = get_settings()
     return await latest_research_mission(settings)
+
+
+@app.post("/api/research/backtests/run", response_model=ResearchBacktestRunResponse)
+async def research_backtests_run(request: ResearchBacktestRunRequest):
+    settings = get_settings()
+    return await run_research_backtests(settings, request)
 
 
 @app.post("/api/paper/run", response_model=PaperRunResponse)

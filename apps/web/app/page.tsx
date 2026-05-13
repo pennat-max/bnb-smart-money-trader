@@ -78,6 +78,30 @@ type ResearchMission = {
   error?: string | null;
 };
 
+type ResearchBacktestRunSummary = {
+  run_id: string | null;
+  symbol: string;
+  timeframe: string;
+  period_days: number;
+  status: "done" | "failed" | "skipped";
+  candles_tested: number;
+  trades: number;
+  win_rate: number;
+  total_pnl_pct: number;
+  max_drawdown_pct: number;
+  profile: string;
+  note_th: string;
+  error?: string | null;
+};
+
+type ResearchBacktestRunResponse = {
+  ok: boolean;
+  mission_id: string | null;
+  runs: ResearchBacktestRunSummary[];
+  best_run: ResearchBacktestRunSummary | null;
+  message_th: string;
+};
+
 type BacktestResult = {
   interval: string;
   period_days: number;
@@ -95,6 +119,7 @@ export default function ResearchMissionControl() {
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null);
   const [marketDataHealth, setMarketDataHealth] = useState<MarketDataHealth | null>(null);
   const [mission, setMission] = useState<ResearchMission | null>(null);
+  const [researchBacktest, setResearchBacktest] = useState<ResearchBacktestRunResponse | null>(null);
   const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("พร้อมเริ่มภารกิจวิจัยแบบปลอดเงินจริง");
@@ -188,6 +213,34 @@ export default function ResearchMissionControl() {
       setMessage("Legacy backtest เสร็จแล้ว ใช้ดูคร่าว ๆ ระหว่างรอ Backtest v2");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Backtest ไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runBacktestV2() {
+    setBusy(true);
+    setMessage("กำลังรัน Backtest v2 จาก Supabase candles และบันทึกผลลงฐานข้อมูล...");
+    try {
+      const response = await fetch(`${apiUrl}/research-backtests-run`, {
+        body: JSON.stringify({
+          mission_id: mission?.job_id ?? null,
+          max_items: 4,
+          starting_balance: 1000,
+          min_trades: 5,
+          optimize_for_win_rate: true,
+          smart_money_priority: true
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST"
+      });
+      const payload = (await response.json()) as ResearchBacktestRunResponse;
+      if (!response.ok || !payload.ok) throw new Error(payload.message_th ?? "Backtest v2 ไม่สำเร็จ");
+      setResearchBacktest(payload);
+      setMessage(payload.message_th);
+      await refresh();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Backtest v2 ไม่สำเร็จ");
     } finally {
       setBusy(false);
     }
@@ -321,16 +374,37 @@ export default function ResearchMissionControl() {
 
         <div className="panel">
           <div className="panelHeader">
-            <span>เครื่องมือระหว่างรอ Backtest v2</span>
+            <span>Backtest v2 และ Paper Research</span>
             <Clock3 size={18} />
           </div>
           <div className="buttonStack">
+            <button className="wideButton" onClick={runBacktestV2} disabled={busy}>
+              {busy ? <Activity size={16} className="spinIcon" /> : <Play size={16} />}
+              รัน Backtest v2 จาก Supabase
+            </button>
             <button className="wideButton secondary" onClick={runReferenceBacktest} disabled={busy}>
               {busy ? <Activity size={16} className="spinIcon" /> : <Play size={16} />}
               รัน Backtest อ้างอิง 1 วัน
             </button>
           </div>
           <p className="saveState">{message}</p>
+          {researchBacktest?.best_run && (
+            <div className="bestRun">
+              <span>ตัวเต็งสำหรับ paper simulation</span>
+              <strong>{researchBacktest.best_run.symbol} {researchBacktest.best_run.timeframe}</strong>
+              <p>{researchBacktest.best_run.note_th}</p>
+            </div>
+          )}
+          {researchBacktest?.runs?.length ? (
+            <div className="compactList resultList">
+              {researchBacktest.runs.map((run) => (
+                <div className={`compactItem ${run.status === "done" ? "pass" : run.status === "skipped" ? "warn" : "fail"}`} key={`${run.symbol}-${run.timeframe}-${run.period_days}`}>
+                  <strong>{run.symbol} {run.timeframe}</strong>
+                  <span>{run.trades} trades / WR {run.win_rate}% / PnL {run.total_pnl_pct}% / DD {run.max_drawdown_pct}%</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
           {backtestResult && (
             <div className="foundationStats twoColumns resultStats">
               <Field label="Trades" value={`${backtestResult.trades}`} />

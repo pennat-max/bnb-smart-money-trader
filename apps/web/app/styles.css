@@ -517,6 +517,37 @@ h1 {
   margin-top: 14px;
 }
 
+.bestRun {
+  background: rgba(35, 196, 131, 0.12);
+  border: 1px solid rgba(35, 196, 131, 0.42);
+  border-radius: 8px;
+  margin-top: 14px;
+  padding: 12px;
+}
+
+.bestRun span {
+  color: var(--muted);
+  display: block;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.bestRun strong {
+  color: var(--green);
+  display: block;
+  font-size: 20px;
+}
+
+.bestRun p {
+  color: var(--muted);
+  line-height: 1.4;
+  margin: 8px 0 0;
+}
+
+.resultList {
+  margin-top: 14px;
+}
+
 .runItem,
 .queueItem {
   background: var(--panel-2);
